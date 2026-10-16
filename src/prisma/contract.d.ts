@@ -22,9 +22,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'d99d6e7d7630d717bcf8fb23c91f0aa2010b50abd04be8bdd42b4d66422d5102'>;
+  StorageHashBase<'6e759b1fbdd320a6aab15695a1f5b8210c9cb6f00212665c00adceac0741de93'>;
 export type ExecutionHash =
-  ExecutionHashBase<'197b7c0788b31f44f97dcdd224acda4be4d884d9837610b50790222ec8a78eae'>;
+  ExecutionHashBase<'d0999d7c7df3fb8368aca06fb9f8e0fcfe3ec9d58f82422d3bec60068eb91156'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -927,6 +927,21 @@ export type FieldOutputTypes = {
       readonly permission_id: CodecTypes['pg/text@1']['output'];
       readonly role_id: CodecTypes['pg/text@1']['output'];
       readonly tenant_id: CodecTypes['pg/text@1']['output'];
+    };
+    readonly SalesEnquiry: {
+      readonly company: CodecTypes['pg/text@1']['output'];
+      readonly contact_name: CodecTypes['pg/text@1']['output'];
+      readonly created_at: TimestampString<3>;
+      readonly email: CodecTypes['pg/text@1']['output'];
+      readonly id: CodecTypes['pg/text@1']['output'];
+      readonly ip_address: CodecTypes['pg/text@1']['output'] | null;
+      readonly message: CodecTypes['pg/text@1']['output'] | null;
+      readonly modules: CodecTypes['pg/text@1']['output'] | null;
+      readonly phone: CodecTypes['pg/text@1']['output'] | null;
+      readonly reference_number: CodecTypes['pg/text@1']['output'];
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly updated_at: TimestampString<3>;
+      readonly user_count: CodecTypes['pg/text@1']['output'] | null;
     };
     readonly SiteSurvey: {
       readonly constraints: CodecTypes['pg/text@1']['output'] | null;
@@ -1857,6 +1872,21 @@ export type FieldInputTypes = {
       readonly role_id: CodecTypes['pg/text@1']['input'];
       readonly tenant_id: CodecTypes['pg/text@1']['input'];
     };
+    readonly SalesEnquiry: {
+      readonly company: CodecTypes['pg/text@1']['input'];
+      readonly contact_name: CodecTypes['pg/text@1']['input'];
+      readonly created_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly email: CodecTypes['pg/text@1']['input'];
+      readonly id: CodecTypes['pg/text@1']['input'];
+      readonly ip_address: CodecTypes['pg/text@1']['input'] | null;
+      readonly message: CodecTypes['pg/text@1']['input'] | null;
+      readonly modules: CodecTypes['pg/text@1']['input'] | null;
+      readonly phone: CodecTypes['pg/text@1']['input'] | null;
+      readonly reference_number: CodecTypes['pg/text@1']['input'];
+      readonly status: CodecTypes['pg/text@1']['input'];
+      readonly updated_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly user_count: CodecTypes['pg/text@1']['input'] | null;
+    };
     readonly SiteSurvey: {
       readonly constraints: CodecTypes['pg/text@1']['input'] | null;
       readonly created_at: CodecTypes['pg/timestamp-string@1']['input'];
@@ -2786,6 +2816,21 @@ export type StorageColumnTypes = {
       readonly role_id: CodecTypes['pg/text@1']['output'];
       readonly tenant_id: CodecTypes['pg/text@1']['output'];
     };
+    readonly SalesEnquiry: {
+      readonly company: CodecTypes['pg/text@1']['output'];
+      readonly contact_name: CodecTypes['pg/text@1']['output'];
+      readonly created_at: TimestampString<3>;
+      readonly email: CodecTypes['pg/text@1']['output'];
+      readonly id: CodecTypes['pg/text@1']['output'];
+      readonly ip_address: CodecTypes['pg/text@1']['output'] | null;
+      readonly message: CodecTypes['pg/text@1']['output'] | null;
+      readonly modules: CodecTypes['pg/text@1']['output'] | null;
+      readonly phone: CodecTypes['pg/text@1']['output'] | null;
+      readonly reference_number: CodecTypes['pg/text@1']['output'];
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly updated_at: TimestampString<3>;
+      readonly user_count: CodecTypes['pg/text@1']['output'] | null;
+    };
     readonly SiteSurvey: {
       readonly constraints: CodecTypes['pg/text@1']['output'] | null;
       readonly created_at: TimestampString<3>;
@@ -3714,6 +3759,21 @@ export type StorageColumnInputTypes = {
       readonly permission_id: CodecTypes['pg/text@1']['input'];
       readonly role_id: CodecTypes['pg/text@1']['input'];
       readonly tenant_id: CodecTypes['pg/text@1']['input'];
+    };
+    readonly SalesEnquiry: {
+      readonly company: CodecTypes['pg/text@1']['input'];
+      readonly contact_name: CodecTypes['pg/text@1']['input'];
+      readonly created_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly email: CodecTypes['pg/text@1']['input'];
+      readonly id: CodecTypes['pg/text@1']['input'];
+      readonly ip_address: CodecTypes['pg/text@1']['input'] | null;
+      readonly message: CodecTypes['pg/text@1']['input'] | null;
+      readonly modules: CodecTypes['pg/text@1']['input'] | null;
+      readonly phone: CodecTypes['pg/text@1']['input'] | null;
+      readonly reference_number: CodecTypes['pg/text@1']['input'];
+      readonly status: CodecTypes['pg/text@1']['input'];
+      readonly updated_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly user_count: CodecTypes['pg/text@1']['input'] | null;
     };
     readonly SiteSurvey: {
       readonly constraints: CodecTypes['pg/text@1']['input'] | null;
@@ -4920,6 +4980,22 @@ export namespace Models {
     tenant: public_Tenant;
     readonly [RelationKeys]?: 'permission' | 'role' | 'tenant';
   };
+  export type public_SalesEnquiry = {
+    company: CodecTypes['pg/text@1']['output'];
+    contact_name: CodecTypes['pg/text@1']['output'];
+    created_at: TimestampString<3>;
+    email: CodecTypes['pg/text@1']['output'];
+    id: CodecTypes['pg/text@1']['output'];
+    ip_address: CodecTypes['pg/text@1']['output'] | null;
+    message: CodecTypes['pg/text@1']['output'] | null;
+    modules: CodecTypes['pg/text@1']['output'] | null;
+    phone: CodecTypes['pg/text@1']['output'] | null;
+    reference_number: CodecTypes['pg/text@1']['output'];
+    status: CodecTypes['pg/text@1']['output'];
+    updated_at: TimestampString<3>;
+    user_count: CodecTypes['pg/text@1']['output'] | null;
+    readonly [RelationKeys]?: never;
+  };
   export type public_SiteSurvey = {
     constraints: CodecTypes['pg/text@1']['output'] | null;
     created_at: TimestampString<3>;
@@ -5333,6 +5409,7 @@ export declare const models: {
     Requirement: Models.public_Requirement;
     Role: Models.public_Role;
     RolePermission: Models.public_RolePermission;
+    SalesEnquiry: Models.public_SalesEnquiry;
     SiteSurvey: Models.public_SiteSurvey;
     Solution: Models.public_Solution;
     SolutionRevision: Models.public_SolutionRevision;
@@ -11355,6 +11432,119 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly SalesEnquiry: {
+              columns: {
+                readonly company: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly contact_name: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly created_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly email: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly ip_address: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly message: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly modules: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly phone: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly reference_number: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly status: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'NEW'>;
+                  };
+                  readonly many: false;
+                };
+                readonly updated_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: false;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly user_count: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', '10-50'>;
+                  };
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'SalesEnquiry_created_at_idx';
+                  readonly columns: readonly ['created_at'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'SalesEnquiry_email_idx';
+                  readonly columns: readonly ['email'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'SalesEnquiry_reference_number_key';
+                  readonly columns: readonly ['reference_number'];
+                  readonly unique: true;
+                },
+              ];
+              foreignKeys: readonly [];
+            };
             readonly SiteSurvey: {
               columns: {
                 readonly constraints: {
@@ -13472,6 +13662,10 @@ type ContractBase = Omit<
     readonly RolePermission: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'RolePermission';
+    };
+    readonly SalesEnquiry: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'SalesEnquiry';
     };
     readonly SiteSurvey: {
       readonly namespace: 'public' & NamespaceId;
@@ -19493,6 +19687,90 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly SalesEnquiry: {
+            readonly fields: {
+              readonly company: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly contact_name: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly created_at: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly email: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly ip_address: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly message: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly modules: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly phone: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly reference_number: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly status: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly updated_at: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly user_count: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+            };
+            readonly relations: Record<string, never>;
+            readonly storage: {
+              readonly table: 'SalesEnquiry';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly company: { readonly column: 'company' };
+                readonly contact_name: { readonly column: 'contact_name' };
+                readonly created_at: { readonly column: 'created_at' };
+                readonly email: { readonly column: 'email' };
+                readonly id: { readonly column: 'id' };
+                readonly ip_address: { readonly column: 'ip_address' };
+                readonly message: { readonly column: 'message' };
+                readonly modules: { readonly column: 'modules' };
+                readonly phone: { readonly column: 'phone' };
+                readonly reference_number: { readonly column: 'reference_number' };
+                readonly status: { readonly column: 'status' };
+                readonly updated_at: { readonly column: 'updated_at' };
+                readonly user_count: { readonly column: 'user_count' };
+              };
+            };
+          };
           readonly SiteSurvey: {
             readonly fields: {
               readonly constraints: {
@@ -22416,6 +22694,23 @@ type ContractBase = Omit<
           readonly ref: {
             readonly entry: 'RolePermission';
             readonly field: 'id';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'uuidv4'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'SalesEnquiry';
+            readonly field: 'id';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
+          readonly onUpdate: { readonly id: 'timestampNow'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'SalesEnquiry';
+            readonly field: 'updated_at';
             readonly namespace: 'public';
           };
         },

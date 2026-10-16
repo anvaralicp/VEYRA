@@ -7,6 +7,7 @@ import { NAVIGATION_CONFIG, NAVIGATION_SECTIONS } from "../../config/navigation"
 import { useState } from "react";
 import * as Icons from "lucide-react";
 import { cn } from "../../lib/utils"; // Shadcn utility
+import { BrandLogo } from "../ui/BrandLogo";
 
 export interface SidebarProps {
   userPermissions: string[];
@@ -36,7 +37,13 @@ export function Sidebar({ userPermissions, isOwner }: SidebarProps) {
   return (
     <aside className={cn("bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 border-r border-slate-800", collapsed ? "w-16" : "w-64", "hidden md:flex h-full")}>
       <div className="h-14 flex items-center justify-between px-4 border-b border-slate-800">
-        {!collapsed && <span className="font-bold text-white text-lg tracking-wider">VEYRA</span>}
+        <div className="flex items-center overflow-hidden">
+          {collapsed ? (
+            <BrandLogo variant="mark" size="xs" linkToHome />
+          ) : (
+            <BrandLogo variant="full-dark" size="sm" linkToHome />
+          )}
+        </div>
         <button onClick={() => setCollapsed(!collapsed)} className="text-slate-400 hover:text-white" aria-label="Toggle Sidebar">
           {collapsed ? <Icons.Menu className="h-5 w-5 mx-auto" /> : <Icons.ChevronLeft className="h-5 w-5" />}
         </button>

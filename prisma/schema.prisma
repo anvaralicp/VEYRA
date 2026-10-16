@@ -1463,3 +1463,22 @@ model InventoryAdjustment {
 
   @@unique([tenant_id, adjustment_number])
 }
+
+model SalesEnquiry {
+  id               String   @id @default(uuid())
+  reference_number String   @unique
+  contact_name     String
+  email            String
+  company          String
+  phone            String?
+  user_count       String?  @default("10-50")
+  modules          String?  // JSON-encoded array of selected modules
+  message          String?
+  ip_address       String?
+  status           String   @default("NEW") // NEW, CONTACTED, QUALIFIED, CLOSED
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@index([email])
+  @@index([created_at])
+}

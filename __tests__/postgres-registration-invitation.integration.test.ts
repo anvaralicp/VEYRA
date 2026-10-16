@@ -18,18 +18,26 @@ describe('Real PostgreSQL Integration Gate: Registration Rollback & Invitation C
   const createdInvitationIds: string[] = [];
 
   beforeAll(async () => {
-    const rawUrl = process.env.DATABASE_URL;
-    if (!rawUrl) throw new Error('DATABASE_URL is not set.');
-
-    const parsedUrl = new URL(rawUrl);
-    parsedUrl.pathname = '/veyra_test';
-
-    // Strict guard: ensure we are ONLY hitting veyra_test
-    if (parsedUrl.pathname !== '/veyra_test') {
-      throw new Error(`CRITICAL: Aborting because target is ${parsedUrl.pathname}, not /veyra_test`);
+    const rawUrl = process.env.TEST_DATABASE_URL;
+    if (!rawUrl) {
+      throw new Error(
+        'TEST_DATABASE_URL is not configured. PostgreSQL integration tests require an explicitly configured, isolated test database (e.g. postgresql://postgres:postgres@localhost:5432/veyra_test). Refusing to connect or run to protect production databases.'
+      );
     }
 
-    testDbUrl = parsedUrl.toString();
+    const parsedUrl = new URL(rawUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    if (
+      hostname.includes('neon.tech') ||
+      parsedUrl.pathname === '/neondb' ||
+      parsedUrl.pathname.includes('neon')
+    ) {
+      throw new Error(
+        `CRITICAL: TEST_DATABASE_URL targets production database "${parsedUrl.pathname}". Aborting immediately.`
+      );
+    }
+
+    testDbUrl = rawUrl;
     testDb = postgres<Contract>({
       contractJson,
       url: testDbUrl,
@@ -37,6 +45,7 @@ describe('Real PostgreSQL Integration Gate: Registration Rollback & Invitation C
   });
 
   afterAll(async () => {
+    if (!testDb) return;
     // Clean up created test entities from veyra_test
     for (const invId of createdInvitationIds) {
       try {

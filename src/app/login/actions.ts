@@ -11,6 +11,9 @@ import { redirect } from "next/navigation";
 export async function loginAction(prevState: any, formData: FormData) {
   const email = formData.get("email");
   const password = formData.get("password");
+  const redirectTo = formData.get("redirectTo");
+  const targetDestination =
+    typeof redirectTo === "string" && redirectTo.startsWith("/") ? redirectTo : "/";
 
   if (typeof email !== "string" || typeof password !== "string") {
     return { error: "Invalid input format" };
@@ -73,7 +76,7 @@ export async function loginAction(prevState: any, formData: FormData) {
             sameSite: "lax",
             path: "/",
           });
-          redirect("/");
+          redirect(targetDestination);
           return;
         } else if (memberships.length > 1) {
           redirect("/select-tenant");
@@ -87,7 +90,7 @@ export async function loginAction(prevState: any, formData: FormData) {
     }
   }
 
-  redirect("/");
+  redirect(targetDestination);
 }
 
 export async function logoutAction() {

@@ -17,12 +17,27 @@ function getSecretKey() {
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Exclude static assets and api routes if needed
-  if (path.startsWith('/_next') || path.startsWith('/favicon.ico')) {
+  // Exclude static assets and api routes
+  if (
+    path.startsWith('/_next') ||
+    path.startsWith('/brand') ||
+    path === '/favicon.ico' ||
+    path === '/icon-192.png' ||
+    path === '/icon-512.png'
+  ) {
     return NextResponse.next();
   }
 
-  const isPublicRoute = path === '/login' || path === '/register' || path.startsWith('/invite');
+  // Publicly accessible pages without requiring session
+  const isPublicRoute =
+    path === '/' ||
+    path === '/pricing' ||
+    path === '/contact-sales' ||
+    path === '/terms' ||
+    path === '/privacy' ||
+    path === '/login' ||
+    path === '/register' ||
+    path.startsWith('/invite');
 
   const sessionToken = request.cookies.get('session')?.value;
   let isAuthenticated = false;
@@ -36,12 +51,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Unauthenticated user trying to access protected route -> redirect to login
   if (!isAuthenticated && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Authenticated user trying to access login or register -> redirect to dashboard
   if (isAuthenticated && (path === '/login' || path === '/register')) {
-    return NextResponse.redirect(new URL('/', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -58,5 +75,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icon-192.png|icon-512.png).*)'],
 };

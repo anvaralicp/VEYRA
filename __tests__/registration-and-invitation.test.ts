@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "crypto";
 import { registerAction } from "../src/app/register/actions";
 import {
@@ -8,6 +8,7 @@ import {
   acceptInvitationAction,
 } from "../src/app/invite/actions";
 import { hashPassword } from "../src/lib/auth/password";
+import { db } from "../src/prisma/db";
 
 const {
   mockCookiesStore,
@@ -16,6 +17,7 @@ const {
   mockTenantModel,
   mockInvitationModel,
   mockTenantMemberModel,
+  mockAuditLogModel,
   mockBootstrapTenant,
   mockGetSession,
   mockTransaction,
@@ -38,6 +40,9 @@ const {
     findUnique: vi.fn(),
     create: vi.fn(),
   };
+  const auditLogModel = {
+    create: vi.fn(),
+  };
 
   const tx = {
     Invitation: invitationModel,
@@ -46,6 +51,8 @@ const {
     user: userModel,
     TenantMember: tenantMemberModel,
     tenantMember: tenantMemberModel,
+    AuditLog: auditLogModel,
+    auditLog: auditLogModel,
   };
 
   return {
@@ -59,6 +66,7 @@ const {
     mockTenantModel: tenantModel,
     mockInvitationModel: invitationModel,
     mockTenantMemberModel: tenantMemberModel,
+    mockAuditLogModel: auditLogModel,
     mockBootstrapTenant: vi.fn(),
     mockGetSession: vi.fn(),
     mockTransaction: vi.fn((cb: any) => cb(tx)),
@@ -88,6 +96,8 @@ vi.mock("../src/prisma/db", () => ({
     invitation: mockInvitationModel,
     TenantMember: mockTenantMemberModel,
     tenantMember: mockTenantMemberModel,
+    AuditLog: mockAuditLogModel,
+    auditLog: mockAuditLogModel,
     transaction: mockTransaction,
     $transaction: mockTransaction,
   },
@@ -105,6 +115,11 @@ describe("Milestone 2: Security Audit & Acceptance Suite", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue(null);
+    mockAuditLogModel.create.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("1. Registration Atomicity & Abuse Resistance", () => {
@@ -131,6 +146,41 @@ describe("Milestone 2: Security Audit & Acceptance Suite", () => {
       expect(res4?.error).toContain("Password must be at least 8 characters");
     });
 
+    it("rejects registration when Terms and Privacy acceptance is missing, unchecked, or invalid", async () => {
+      const formData = new FormData();
+      formData.append("organizationName", "Acme Integrators");
+      formData.append("name", "Alice Engineer");
+      formData.append("email", "alice@acme.com");
+      formData.append("password", "SecurePassword123!");
+
+      // 1. Missing agreeTerms (omitted checkbox in standard HTML form)
+      const resMissing = await registerAction(null, formData);
+      expect(resMissing?.error).toBe("Please accept the Terms of Service and Privacy Policy to proceed.");
+
+      // 2. Unchecked / empty string (client hidden input when unchecked)
+      formData.set("agreeTerms", "");
+      const resEmpty = await registerAction(null, formData);
+      expect(resEmpty?.error).toBe("Please accept the Terms of Service and Privacy Policy to proceed.");
+
+      // 3. Explicitly false or invalid value
+      formData.set("agreeTerms", "false");
+      const resFalse = await registerAction(null, formData);
+      expect(resFalse?.error).toBe("Please accept the Terms of Service and Privacy Policy to proceed.");
+
+      // 4. Passes validation when agreeTerms is "on" (standard checkbox)
+      mockUserModel.findUnique.mockResolvedValueOnce({ id: "user-1", email: "alice@acme.com" });
+      formData.set("agreeTerms", "on");
+      const resOn = await registerAction(null, formData);
+      // Reaches user existence check, proving terms validation passed
+      expect(resOn?.error).toBe("An account with this email already exists. Please log in to continue.");
+
+      // 5. Passes validation when agreeTerms is "true" (review step hidden input)
+      mockUserModel.findUnique.mockResolvedValueOnce({ id: "user-1", email: "alice@acme.com" });
+      formData.set("agreeTerms", "true");
+      const resTrue = await registerAction(null, formData);
+      expect(resTrue?.error).toBe("An account with this email already exists. Please log in to continue.");
+    });
+
     it("prevents registration when user email already exists prior to bootstrap", async () => {
       mockUserModel.findUnique.mockResolvedValueOnce({
         id: "existing-user-1",
@@ -142,10 +192,104 @@ describe("Milestone 2: Security Audit & Acceptance Suite", () => {
       formData.append("name", "Bob Existing");
       formData.append("email", "existing@acme.com");
       formData.append("password", "StrongP@ssw0rd");
+      formData.append("agreeTerms", "true");
 
       const res = await registerAction(null, formData);
       expect(res?.error).toContain("An account with this email already exists");
       expect(mockBootstrapTenant).not.toHaveBeenCalled();
+    });
+
+    it("fails closed when user lookup throws without leaking internal error or calling bootstrap", async () => {
+      mockUserModel.findUnique.mockRejectedValueOnce(new Error("FATAL: connection timeout at 0xdeadbeef"));
+
+      const formData = new FormData();
+      formData.append("organizationName", "Acme Corp");
+      formData.append("name", "Test User");
+      formData.append("email", "lookup-error@acme.com");
+      formData.append("password", "StrongP@ssw0rd");
+      formData.append("agreeTerms", "on");
+
+      const res = await registerAction(null, formData);
+      expect(res?.error).toBe("Unable to verify account availability. Please try again shortly.");
+      expect(res?.error).not.toContain("0xdeadbeef");
+      expect(res?.error).not.toContain("timeout");
+      expect(mockBootstrapTenant).not.toHaveBeenCalled();
+      expect(mockCookiesStore.set).not.toHaveBeenCalled();
+      expect(mockRedirect).not.toHaveBeenCalled();
+    });
+
+    it("fails safely when User model is unavailable without calling bootstrap", async () => {
+      const originalUser = (db as any).User;
+      const originalUserLower = (db as any).user;
+      (db as any).User = undefined;
+      (db as any).user = undefined;
+
+      try {
+        const formData = new FormData();
+        formData.append("organizationName", "Acme Corp");
+        formData.append("name", "Test User");
+        formData.append("email", "no-model@acme.com");
+        formData.append("password", "StrongP@ssw0rd");
+        formData.append("agreeTerms", "on");
+
+        const res = await registerAction(null, formData);
+        expect(res?.error).toBe("Registration service is temporarily unavailable. Please try again shortly.");
+        expect(mockBootstrapTenant).not.toHaveBeenCalled();
+        expect(mockCookiesStore.set).not.toHaveBeenCalled();
+        expect(mockRedirect).not.toHaveBeenCalled();
+      } finally {
+        (db as any).User = originalUser;
+        (db as any).user = originalUserLower;
+      }
+    });
+
+    it("succeeds registration and issues session cookies even if trial activation audit log write fails", async () => {
+      mockUserModel.findUnique.mockResolvedValueOnce(null);
+      mockBootstrapTenant.mockResolvedValueOnce({
+        id: "tenant-audit-fail",
+        name: "Resilient Org",
+        creatorUser: { id: "user-audit-fail", email: "resilient@org.com" },
+      });
+      const errorWithCode = new Error("AuditLog connection timeout");
+      (errorWithCode as any).code = "P2024";
+      mockAuditLogModel.create.mockRejectedValueOnce(errorWithCode);
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        const formData = new FormData();
+        formData.append("organizationName", "Resilient Org");
+        formData.append("name", "Resilient User");
+        formData.append("email", "resilient@org.com");
+        formData.append("password", "SecurePassword123!");
+        formData.append("agreeTerms", "on");
+
+        await expect(registerAction(null, formData)).rejects.toThrow("NEXT_REDIRECT");
+
+        expect(mockBootstrapTenant).toHaveBeenCalledWith("Resilient Org", {
+          name: "Resilient User",
+          email: "resilient@org.com",
+          password_hash: expect.any(String),
+        });
+
+        expect(mockCookiesStore.set).toHaveBeenCalledWith(
+          "session",
+          expect.any(String),
+          expect.objectContaining({ httpOnly: true, path: "/" })
+        );
+        expect(mockCookiesStore.set).toHaveBeenCalledWith(
+          "active_tenant_id",
+          "tenant-audit-fail",
+          expect.objectContaining({ httpOnly: true, path: "/" })
+        );
+        expect(mockRedirect).toHaveBeenCalledWith("/");
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "[registerAction] Non-fatal: failed to record trial activation audit log (code: P2024)"
+        );
+      } finally {
+        consoleSpy.mockRestore();
+      }
     });
 
     it("handles concurrent registration email collisions gracefully without internal leaks", async () => {
@@ -159,23 +303,30 @@ describe("Milestone 2: Security Audit & Acceptance Suite", () => {
       formData.append("name", "Concurrent User");
       formData.append("email", "concurrent@acme.com");
       formData.append("password", "StrongP@ssw0rd");
+      formData.append("agreeTerms", "on");
 
       const res = await registerAction(null, formData);
       expect(res?.error).toBe("An account with this email already exists. Please log in to continue.");
     });
 
-    it("fails cleanly when bootstrap fails without issuing cookies or sessions", async () => {
+    it("fails cleanly when bootstrap fails without issuing cookies or sessions or leaking internal errors", async () => {
       mockUserModel.findUnique.mockResolvedValueOnce(null);
-      mockBootstrapTenant.mockRejectedValueOnce(new Error("Database connection dropped"));
+      mockBootstrapTenant.mockRejectedValueOnce(
+        new Error("Database connection dropped at 0xdeadbeef; SQLSTATE 08006")
+      );
 
       const formData = new FormData();
       formData.append("organizationName", "Acme Corp");
       formData.append("name", "Fail User");
       formData.append("email", "fail@acme.com");
       formData.append("password", "StrongP@ssw0rd");
+      formData.append("agreeTerms", "true");
 
       const res = await registerAction(null, formData);
-      expect(res?.error).toBe("Database connection dropped");
+      expect(res?.error).toBe("Failed to complete registration. Please try again.");
+      expect(res?.error).not.toContain("Database connection dropped");
+      expect(res?.error).not.toContain("0xdeadbeef");
+      expect(res?.error).not.toContain("SQLSTATE");
       expect(mockCookiesStore.set).not.toHaveBeenCalled();
       expect(mockRedirect).not.toHaveBeenCalled();
     });
@@ -193,6 +344,7 @@ describe("Milestone 2: Security Audit & Acceptance Suite", () => {
       formData.append("name", "Carol Founder");
       formData.append("email", "founder@techsolutions.com");
       formData.append("password", "SecurePassword123!");
+      formData.append("agreeTerms", "on");
 
       await expect(registerAction(null, formData)).rejects.toThrow("NEXT_REDIRECT");
 

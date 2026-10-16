@@ -1,24 +1,28 @@
-import Link from "next/link";
+import React from "react";
+import { PublicHeader } from "../components/layout/PublicHeader";
+import { HeroSection } from "../components/landing/HeroSection";
+import { ProductCapabilities } from "../components/landing/ProductCapabilities";
+import { PlatformBenefits } from "../components/landing/PlatformBenefits";
+import { PricingSection } from "../components/landing/PricingSection";
+import { PublicFooter } from "../components/layout/PublicFooter";
 
-export default function Home() {
+export const metadata = {
+  title: "VEYRA — One Platform for a Smarter Business",
+  description:
+    "Unify your customers, sales, projects, and service operations in one connected SaaS platform. Simplify work, improve visibility and grow with VEYRA.",
+};
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gray-50 text-gray-900">
-      <main className="flex flex-col items-center max-w-2xl text-center space-y-6">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-          VEYRA Platform
-        </h1>
-        <p className="text-lg text-gray-600">
-          Modular SaaS Foundation. Build CRM, Sales, Procurement, and more on a solid multi-tenant architecture.
-        </p>
-        <div className="flex space-x-4 mt-8">
-          <Link
-            href="/dashboard"
-            className="px-6 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition"
-          >
-            Go to Dashboard
-          </Link>
-        </div>
+    <div className="min-h-screen flex flex-col bg-slate-900">
+      <PublicHeader theme="dark" />
+      <main className="flex-1">
+        <HeroSection />
+        <ProductCapabilities />
+        <PlatformBenefits />
+        <PricingSection />
       </main>
+      <PublicFooter />
     </div>
   );
 }

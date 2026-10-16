@@ -1,0 +1,158 @@
+[
+  {
+    "id": "table.SalesEnquiry",
+    "label": "Create table \"SalesEnquiry\"",
+    "summary": "Creates table \"SalesEnquiry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "SalesEnquiry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"SalesEnquiry\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"SalesEnquiry\"",
+        "sql": "CREATE TABLE \"public\".\"SalesEnquiry\" (\n  \"company\" text NOT NULL,\n  \"contact_name\" text NOT NULL,\n  \"created_at\" timestamp(3) DEFAULT (now()) NOT NULL,\n  \"email\" text NOT NULL,\n  \"id\" text NOT NULL,\n  \"ip_address\" text,\n  \"message\" text,\n  \"modules\" text,\n  \"phone\" text,\n  \"reference_number\" text NOT NULL,\n  \"status\" text DEFAULT 'NEW' NOT NULL,\n  \"updated_at\" timestamp(3) NOT NULL,\n  \"user_count\" text DEFAULT '10-50',\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"SalesEnquiry\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.SalesEnquiry.SalesEnquiry_created_at_idx",
+    "label": "Create index \"SalesEnquiry_created_at_idx\" on \"SalesEnquiry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "SalesEnquiry_created_at_idx",
+        "table": "SalesEnquiry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"SalesEnquiry_created_at_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry_created_at_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"SalesEnquiry_created_at_idx\"",
+        "sql": "CREATE INDEX \"SalesEnquiry_created_at_idx\" ON \"public\".\"SalesEnquiry\" (\"created_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"SalesEnquiry_created_at_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry_created_at_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.SalesEnquiry.SalesEnquiry_email_idx",
+    "label": "Create index \"SalesEnquiry_email_idx\" on \"SalesEnquiry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "SalesEnquiry_email_idx",
+        "table": "SalesEnquiry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"SalesEnquiry_email_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry_email_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"SalesEnquiry_email_idx\"",
+        "sql": "CREATE INDEX \"SalesEnquiry_email_idx\" ON \"public\".\"SalesEnquiry\" (\"email\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"SalesEnquiry_email_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry_email_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.SalesEnquiry.SalesEnquiry_reference_number_key",
+    "label": "Create index \"SalesEnquiry_reference_number_key\" on \"SalesEnquiry\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "SalesEnquiry_reference_number_key",
+        "table": "SalesEnquiry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"SalesEnquiry_reference_number_key\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry_reference_number_key\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"SalesEnquiry_reference_number_key\"",
+        "sql": "CREATE UNIQUE INDEX \"SalesEnquiry_reference_number_key\" ON \"public\".\"SalesEnquiry\" (\"reference_number\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"SalesEnquiry_reference_number_key\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"SalesEnquiry_reference_number_key\""
+        ]
+      }
+    ]
+  }
+]
