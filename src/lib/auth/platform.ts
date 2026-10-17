@@ -17,7 +17,8 @@ export function getPlatformAdminEmails(): Set<string> {
 
   if (envEmails) {
     for (const email of envEmails.split(",")) {
-      const trimmed = email.trim().toLowerCase();
+      let trimmed = email.trim().toLowerCase();
+      trimmed = trimmed.replace(/^["'\\]+|["'\\]+$/g, "").trim();
       if (trimmed) emails.add(trimmed);
     }
   }

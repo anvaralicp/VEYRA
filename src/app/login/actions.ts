@@ -7,13 +7,13 @@ import { verifyPassword } from "../../lib/auth/password";
 import { db } from "../../prisma/db";
 import { getModel } from "../../lib/db/legacy-adapter";
 import { redirect } from "next/navigation";
+import { getSafeRedirectUrl, isPlatformAdminRoute } from "../../lib/auth/redirect";
 
 export async function loginAction(prevState: any, formData: FormData) {
   const email = formData.get("email");
   const password = formData.get("password");
-  const redirectTo = formData.get("redirectTo");
-  const targetDestination =
-    typeof redirectTo === "string" && redirectTo.startsWith("/") ? redirectTo : "/";
+  const rawRedirectTo = formData.get("redirectTo");
+  let targetDestination = getSafeRedirectUrl(rawRedirectTo, "/");
 
   if (typeof email !== "string" || typeof password !== "string") {
     return { error: "Invalid input format" };
@@ -67,43 +67,58 @@ export async function loginAction(prevState: any, formData: FormData) {
 
   // Check active memberships to configure initial tenant context
   try {
+    const { isPlatformAdmin } = await import("../../lib/auth/platform");
+    const userIsAdmin = await isPlatformAdmin(user);
+    const isTargetingPlatformAdmin = isPlatformAdminRoute(targetDestination);
+
+    // If an ordinary user attempts to target platform administration, sanitize destination
+    if (isTargetingPlatformAdmin && !userIsAdmin) {
+      targetDestination = "/";
+    }
+
+    // Allowlisted platform administrator requesting platform console reaches it directly
+    if (userIsAdmin && isTargetingPlatformAdmin) {
+      redirect(targetDestination);
+      return;
+    }
+
     const TenantMember = getModel(db, "TenantMember");
+    let memberships: any[] = [];
     if (TenantMember && typeof TenantMember.findMany === "function") {
-      const memberships = await TenantMember.findMany({
+      memberships = await TenantMember.findMany({
         where: { user_id: user.id, status: "ACTIVE" },
         select: { tenant_id: true, role: true },
       });
+    }
 
-      if (Array.isArray(memberships)) {
-        if (memberships.length === 1) {
-          const { isTenantSuspended } = await import("../../lib/platform/tenant-service");
-          if (await isTenantSuspended(memberships[0].tenant_id)) {
-            cookieStore.delete("session");
-            cookieStore.delete("active_tenant_id");
-            return { error: "Your organization account is suspended. Please contact platform administration." };
-          }
-
-          cookieStore.set("active_tenant_id", memberships[0].tenant_id, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            expires,
-            sameSite: "lax",
-            path: "/",
-          });
-          redirect(targetDestination);
-          return;
-        } else if (memberships.length > 1) {
-          redirect("/select-tenant");
-          return;
+    if (Array.isArray(memberships)) {
+      if (memberships.length === 1) {
+        const { isTenantSuspended } = await import("../../lib/platform/tenant-service");
+        if (await isTenantSuspended(memberships[0].tenant_id)) {
+          cookieStore.delete("session");
+          cookieStore.delete("active_tenant_id");
+          return { error: "Your organization account is suspended. Please contact platform administration." };
         }
-      }
 
-      // If user is a platform administrator and has no tenant memberships, direct to platform console
-      const { isPlatformAdmin } = await import("../../lib/auth/platform");
-      if (await isPlatformAdmin(user)) {
-        redirect("/platform-admin");
+        cookieStore.set("active_tenant_id", memberships[0].tenant_id, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          expires,
+          sameSite: "lax",
+          path: "/",
+        });
+        redirect(targetDestination);
+        return;
+      } else if (memberships.length > 1) {
+        redirect("/select-tenant");
         return;
       }
+    }
+
+    // If user is a platform administrator with no tenant memberships, direct to platform console
+    if (userIsAdmin) {
+      redirect("/platform-admin");
+      return;
     }
   } catch (err: any) {
     if (err?.message?.includes("NEXT_REDIRECT") || err?.digest?.includes("NEXT_REDIRECT")) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { getSafeRedirectUrl } from './lib/auth/redirect';
 
 function getSecretKey() {
   let secretKey = process.env.SESSION_SECRET;
@@ -53,12 +54,18 @@ export async function middleware(request: NextRequest) {
 
   // Unauthenticated user trying to access protected route -> redirect to login
   if (!isAuthenticated && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    const loginUrl = new URL('/login', request.url);
+    const destination = request.nextUrl.search ? `${path}${request.nextUrl.search}` : path;
+    const safeDestination = getSafeRedirectUrl(destination, '/dashboard');
+    loginUrl.searchParams.set('redirectTo', safeDestination);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated user trying to access login or register -> redirect to dashboard
+  // Authenticated user trying to access login or register -> redirect to destination or dashboard
   if (isAuthenticated && (path === '/login' || path === '/register')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const rawRedirectTo = request.nextUrl.searchParams.get('redirectTo');
+    const safeDestination = getSafeRedirectUrl(rawRedirectTo, '/dashboard');
+    return NextResponse.redirect(new URL(safeDestination, request.url));
   }
 
   const requestHeaders = new Headers(request.headers);

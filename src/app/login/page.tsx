@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useActionState } from "react";
+import React, { useState, Suspense, useActionState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { loginAction } from "./actions";
+import { getSafeRedirectUrl } from "../../lib/auth/redirect";
 import { BrandLogo } from "../../components/ui/BrandLogo";
 import {
   Eye,
@@ -12,7 +14,11 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const rawRedirectTo = searchParams.get("redirectTo");
+  const safeRedirectTo = getSafeRedirectUrl(rawRedirectTo, "/dashboard");
+
   const [state, formAction, isPending] = useActionState(loginAction, null);
   const [showPassword, setShowPassword] = useState(false);
   const [forgotMsg, setForgotMsg] = useState(false);
@@ -42,7 +48,7 @@ export default function LoginPage() {
             </p>
 
             <form action={formAction} className="mt-8 space-y-4" suppressHydrationWarning>
-              <input type="hidden" name="redirectTo" value="/dashboard" />
+              <input type="hidden" name="redirectTo" value={safeRedirectTo} />
               {state?.error && (
                 <div
                   className="p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-200"
@@ -252,5 +258,21 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen w-full flex items-center justify-center bg-slate-50">
+          <div className="text-sm font-semibold text-slate-600">
+            Loading VEYRA sign-in...
+          </div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
