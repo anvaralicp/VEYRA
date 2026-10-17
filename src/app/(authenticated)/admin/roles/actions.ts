@@ -61,6 +61,11 @@ export async function assignPermissionsToRole(roleId: string, permissionKeys: st
   await requirePermission("role.assign_permission");
   const tenantDb = await getTenantDb();
 
+  // Enforce strict separation: Tenant roles can never be assigned platform permissions
+  if (permissionKeys.some((k) => k.startsWith("platform."))) {
+    throw new Error("FORBIDDEN: Platform permissions cannot be assigned to tenant roles.");
+  }
+
   // Validate that the target role belongs to the current tenant
   const role = await tenantDb.Role.findUnique({
     where: { id: roleId },
@@ -69,11 +74,15 @@ export async function assignPermissionsToRole(roleId: string, permissionKeys: st
     throw new Error("Record not found in the current tenant.");
   }
 
-  // Verify permissions exist globally (Permission is a global system catalog)
+  // Verify permissions exist globally and are strictly tenant permissions
   const Permission = getModel(db, "Permission");
   const validPerms = Permission
     ? await Permission.findMany({
-        where: { key: { in: permissionKeys } },
+        where: {
+          key: {
+            in: permissionKeys.filter((k) => !k.startsWith("platform.")),
+          },
+        },
       })
     : [];
 

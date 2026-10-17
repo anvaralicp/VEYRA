@@ -29,10 +29,21 @@ export async function switchTenantAction(tenantId: string) {
         tenant_id: tenantId,
       },
     },
+    select: {
+      user_id: true,
+      tenant_id: true,
+      role: true,
+      status: true,
+    },
   });
 
   if (!membership || (membership.status && membership.status !== "ACTIVE")) {
     throw new Error("FORBIDDEN: User is not an active member of this organization");
+  }
+
+  const { isTenantSuspended } = await import("../../lib/platform/tenant-service");
+  if (await isTenantSuspended(tenantId)) {
+    throw new Error("FORBIDDEN: Tenant account is suspended. Please contact platform administration.");
   }
 
   // Set the active_tenant_id cookie

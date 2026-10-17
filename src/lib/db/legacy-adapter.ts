@@ -198,8 +198,36 @@ export function getModel(client: any, modelName: string): any {
                    client[modelName] ||
                    client[modelName.charAt(0).toLowerCase() + modelName.slice(1)];
   if (!rawModel) return undefined;
-  if (typeof rawModel.findUnique === "function" && typeof rawModel.where !== "function") {
+  if ((typeof rawModel.findUnique === "function" || typeof rawModel.findMany === "function") && typeof rawModel.where !== "function") {
     return rawModel;
   }
   return adaptPrisma7(rawModel);
+}
+
+/**
+ * Executes an operation inside a database transaction, supporting Prisma 8 (db.transaction),
+ * Prisma 7/client (db.$transaction), and mock clients in test suites.
+ *
+ * Fail-closed: If the database client does not support transactions, throws SERVICE_UNAVAILABLE.
+ * Never silently executes mutations outside a real transaction.
+ */
+export async function runTransaction<T = any>(
+  client: any,
+  action: (tx: any) => Promise<T>
+): Promise<T> {
+  if (!client) {
+    throw new Error("SERVICE_UNAVAILABLE: Database client is unavailable");
+  }
+
+  const runner = typeof client.transaction === "function"
+    ? client.transaction.bind(client)
+    : typeof client.$transaction === "function"
+    ? client.$transaction.bind(client)
+    : null;
+
+  if (!runner) {
+    throw new Error("SERVICE_UNAVAILABLE: Database transaction support is unavailable");
+  }
+
+  return await runner(action);
 }

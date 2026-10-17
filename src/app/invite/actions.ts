@@ -8,7 +8,7 @@ import { db } from "../../prisma/db";
 import { hashPassword, verifyPassword } from "../../lib/auth/password";
 import { encrypt } from "../../lib/auth/jwt";
 import { getSession } from "../../lib/auth/session";
-import { getModel } from "../../lib/db/legacy-adapter";
+import { getModel, runTransaction } from "../../lib/db/legacy-adapter";
 
 export async function acceptInvitation(
   invitationId: string,
@@ -19,13 +19,7 @@ export async function acceptInvitation(
   const token_hash = crypto.createHash("sha256").update(token).digest("hex");
 
   // Transaction to update invitation and user/membership atomically
-  const runTransaction = (db as any).transaction
-    ? (db as any).transaction.bind(db)
-    : (db as any).$transaction
-    ? (db as any).$transaction.bind(db)
-    : (cb: any) => cb(db);
-
-  return await runTransaction(async (tx: any) => {
+  return await runTransaction(db, async (tx: any) => {
     const txInvitation = getModel(tx, "Invitation");
     const txUser = getModel(tx, "User");
     const txTenantMember = getModel(tx, "TenantMember");

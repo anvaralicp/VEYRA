@@ -24,6 +24,12 @@ export async function loginAction(prevState: any, formData: FormData) {
   const user = User
     ? await User.findUnique({
         where: { email: normalizedEmail },
+        select: {
+          id: true,
+          email: true,
+          password_hash: true,
+          status: true,
+        },
       })
     : null;
 
@@ -65,10 +71,18 @@ export async function loginAction(prevState: any, formData: FormData) {
     if (TenantMember && typeof TenantMember.findMany === "function") {
       const memberships = await TenantMember.findMany({
         where: { user_id: user.id, status: "ACTIVE" },
+        select: { tenant_id: true, role: true },
       });
 
       if (Array.isArray(memberships)) {
         if (memberships.length === 1) {
+          const { isTenantSuspended } = await import("../../lib/platform/tenant-service");
+          if (await isTenantSuspended(memberships[0].tenant_id)) {
+            cookieStore.delete("session");
+            cookieStore.delete("active_tenant_id");
+            return { error: "Your organization account is suspended. Please contact platform administration." };
+          }
+
           cookieStore.set("active_tenant_id", memberships[0].tenant_id, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
@@ -83,11 +97,21 @@ export async function loginAction(prevState: any, formData: FormData) {
           return;
         }
       }
+
+      // If user is a platform administrator and has no tenant memberships, direct to platform console
+      const { isPlatformAdmin } = await import("../../lib/auth/platform");
+      if (await isPlatformAdmin(user)) {
+        redirect("/platform-admin");
+        return;
+      }
     }
   } catch (err: any) {
     if (err?.message?.includes("NEXT_REDIRECT") || err?.digest?.includes("NEXT_REDIRECT")) {
       throw err;
     }
+    cookieStore.delete("session");
+    cookieStore.delete("active_tenant_id");
+    return { error: "Account verification failed. Please try again or contact support." };
   }
 
   redirect(targetDestination);

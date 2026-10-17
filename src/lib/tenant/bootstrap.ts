@@ -2,7 +2,7 @@
 import { db } from "../../prisma/db";
 import { SYSTEM_PERMISSIONS } from "../auth/permissions";
 import { SYSTEM_ROLE_TEMPLATES } from "../auth/roles";
-import { getModel } from "../../lib/db/legacy-adapter";
+import { getModel, runTransaction } from "../../lib/db/legacy-adapter";
 
 // Seed the global permissions catalog. Safe to run repeatedly.
 export async function seedGlobalPermissions() {
@@ -30,13 +30,7 @@ export async function bootstrapTenant(
   // but it's safe to run here idempotently just in case).
   await seedGlobalPermissions();
 
-  const runTransaction = (db as any).transaction
-    ? (db as any).transaction.bind(db)
-    : (db as any).$transaction
-    ? (db as any).$transaction.bind(db)
-    : (cb: any) => cb(db);
-
-  return await runTransaction(async (tx: any) => {
+  return await runTransaction(db, async (tx: any) => {
     // 0. Resolve or create user atomically inside the transaction
     let creatorId = (creator as any).id;
     let createdUser: any = null;
@@ -87,9 +81,9 @@ export async function bootstrapTenant(
         ownerRoleId = role.id;
       }
 
-      // Determine which permissions to assign (deduplicated)
+      // Determine which permissions to assign (deduplicated; exclude platform admin permissions)
       const rawKeys = template.permissions.includes("*")
-        ? allPermissions.map((p: any) => p.key)
+        ? allPermissions.filter((p: any) => !p.key.startsWith("platform.")).map((p: any) => p.key)
         : template.permissions;
       const keysToAssign = Array.from(new Set(rawKeys));
 

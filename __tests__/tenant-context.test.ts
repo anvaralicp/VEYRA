@@ -12,6 +12,7 @@ const {
   mockTenantMemberFindUnique,
   mockTenantMemberFindMany,
   mockUserFindUnique,
+  mockAuditLogFindMany,
   mockRedirect,
 } = vi.hoisted(() => ({
   mockCookiesStore: {
@@ -25,6 +26,7 @@ const {
   mockTenantMemberFindUnique: vi.fn(),
   mockTenantMemberFindMany: vi.fn(),
   mockUserFindUnique: vi.fn(),
+  mockAuditLogFindMany: vi.fn(),
   mockRedirect: vi.fn(),
 }));
 
@@ -71,6 +73,16 @@ vi.mock('../src/prisma/db', () => ({
     User: {
       findUnique: mockUserFindUnique,
     },
+    AuditLog: {
+      findMany: mockAuditLogFindMany,
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async () => ({ id: 'mock-audit' })),
+    },
+    auditLog: {
+      findMany: mockAuditLogFindMany,
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async () => ({ id: 'mock-audit' })),
+    },
   },
 }));
 
@@ -79,6 +91,7 @@ describe('Tenant Context & Session Resolution Regression Suite', () => {
     vi.clearAllMocks();
     mockCookiesStore.get.mockReturnValue(undefined);
     mockHeadersStore.get.mockReturnValue(null);
+    mockAuditLogFindMany.mockResolvedValue([]);
   });
 
   describe('1. Single Active Tenant Auto-Resolution', () => {
@@ -291,6 +304,88 @@ describe('Tenant Context & Session Resolution Regression Suite', () => {
       expect(mockCookiesStore.set).toHaveBeenCalledWith('session', expect.any(String), expect.any(Object));
       expect(mockCookiesStore.set).not.toHaveBeenCalledWith('active_tenant_id', expect.any(String), expect.any(Object));
       expect(mockRedirect).toHaveBeenCalledWith('/select-tenant');
+    });
+  });
+
+  describe('6. Membership Database Failure & Fail-Closed Boundaries', () => {
+    it('throws SERVICE_UNAVAILABLE when memberships findMany query fails with database exception', async () => {
+      const token = await encrypt({ userId: 'user-err', email: 'err@example.com' });
+      mockCookiesStore.get.mockImplementation((name) => {
+        if (name === 'session') return { value: token };
+        return undefined;
+      });
+
+      mockTenantMemberFindMany.mockRejectedValue(new Error('FATAL: connection to database failed'));
+
+      await expect(getTenantContext()).rejects.toThrow('SERVICE_UNAVAILABLE: Failed to query tenant memberships');
+    });
+
+    it('throws SERVICE_UNAVAILABLE when requested tenant membership findUnique query fails with database exception', async () => {
+      const token = await encrypt({ userId: 'user-err', email: 'err@example.com' });
+      mockCookiesStore.get.mockImplementation((name) => {
+        if (name === 'session') return { value: token };
+        if (name === 'active_tenant_id') return { value: 'tenant-db-fail' };
+        return undefined;
+      });
+
+      mockTenantMemberFindUnique.mockRejectedValue(new Error('Connection terminated unexpectedly'));
+
+      await expect(getTenantContext()).rejects.toThrow('SERVICE_UNAVAILABLE: Failed to verify tenant membership');
+    });
+
+    it('blocks tenant switching when target tenant is suspended', async () => {
+      const token = await encrypt({ userId: 'user-switch', email: 'switch@example.com' });
+      mockCookiesStore.get.mockImplementation((name) => {
+        if (name === 'session') return { value: token };
+        return undefined;
+      });
+
+      mockTenantMemberFindUnique.mockResolvedValue({
+        id: 'mem-1',
+        user_id: 'user-switch',
+        tenant_id: 'tenant-suspended-target',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      });
+
+      mockAuditLogFindMany.mockResolvedValue([
+        {
+          id: 'audit-susp-1',
+          action: 'TENANT_SUSPEND',
+          entity: 'Tenant',
+          created_at: new Date('2026-03-01T10:00:00Z'),
+        },
+      ]);
+
+      await expect(switchTenantAction('tenant-suspended-target')).rejects.toThrow(
+        'FORBIDDEN: Tenant account is suspended. Please contact platform administration.'
+      );
+      expect(mockCookiesStore.set).not.toHaveBeenCalledWith('active_tenant_id', expect.any(String), expect.any(Object));
+    });
+
+    it('blocks tenant context resolution when single tenant is suspended', async () => {
+      const token = await encrypt({ userId: 'user-single', email: 'single@example.com' });
+      mockCookiesStore.get.mockImplementation((name) => {
+        if (name === 'session') return { value: token };
+        return undefined;
+      });
+
+      mockTenantMemberFindMany.mockResolvedValue([
+        { id: 'mem-1', user_id: 'user-single', tenant_id: 'tenant-solo-suspended', role: 'OWNER', status: 'ACTIVE' },
+      ]);
+
+      mockAuditLogFindMany.mockResolvedValue([
+        {
+          id: 'audit-susp-2',
+          action: 'TENANT_SUSPEND',
+          entity: 'Tenant',
+          created_at: new Date('2026-03-01T10:00:00Z'),
+        },
+      ]);
+
+      await expect(getTenantContext()).rejects.toThrow(
+        'FORBIDDEN: Tenant account is suspended. Please contact platform administration.'
+      );
     });
   });
 });

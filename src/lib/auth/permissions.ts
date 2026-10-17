@@ -231,4 +231,14 @@ export const SYSTEM_PERMISSIONS = [
   { key: "goods_receipt.update", resource: "goods_receipt", action: "update", description: "Update goods receipts" },
   { key: "goods_receipt.post", resource: "goods_receipt", action: "post", description: "Post goods receipts" },
 
+  // Platform Administration (Strictly isolated from tenant membership and business data)
+  { key: "platform.dashboard.view", resource: "platform", action: "view_dashboard", description: "View platform overview dashboard and aggregate metadata" },
+  { key: "platform.tenant.view", resource: "platform_tenant", action: "view", description: "View tenant directory and administrative metadata" },
+  { key: "platform.tenant.suspend", resource: "platform_tenant", action: "suspend", description: "Suspend tenant account and access" },
+  { key: "platform.tenant.reactivate", resource: "platform_tenant", action: "reactivate", description: "Reactivate suspended tenant account" },
+  { key: "platform.tenant.invite_admin", resource: "platform_tenant", action: "invite_admin", description: "Invite or manage tenant administrators" },
+  { key: "platform.audit.view", resource: "platform_audit", action: "view", description: "View platform administrative audit trail" },
 ];
+
+export const PLATFORM_PERMISSIONS = SYSTEM_PERMISSIONS.filter((p) => p.key.startsWith("platform."));
+export const TENANT_PERMISSIONS = SYSTEM_PERMISSIONS.filter((p) => !p.key.startsWith("platform."));

@@ -47,7 +47,17 @@ vi.mock('../src/prisma/db', () => ({
     },
     TenantMember: {
       findUnique: mockTenantMemberFindUnique,
-    }
+    },
+    AuditLog: {
+      findMany: vi.fn(async () => []),
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async () => ({ id: 'mock-audit' })),
+    },
+    auditLog: {
+      findMany: vi.fn(async () => []),
+      findUnique: vi.fn(async () => null),
+      create: vi.fn(async () => ({ id: 'mock-audit' })),
+    },
   },
 }));
 

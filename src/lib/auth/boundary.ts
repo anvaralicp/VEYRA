@@ -22,6 +22,10 @@ import { db } from "../../prisma/db";
 import { getModel } from "../db/legacy-adapter";
 
 export async function requirePermission(permissionKey: string) {
+  if (permissionKey.startsWith("platform.")) {
+    throw new Error("FORBIDDEN: Platform permissions cannot be evaluated within a tenant context");
+  }
+
   const context = await requireTenantContext();
 
   const TenantMember = getModel(db, "TenantMember");
