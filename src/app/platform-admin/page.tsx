@@ -13,7 +13,7 @@ import {
   Layers,
 } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const instant = false;
 
 export default async function PlatformAdminDashboard() {
   const metrics = await getPlatformOverviewMetrics();

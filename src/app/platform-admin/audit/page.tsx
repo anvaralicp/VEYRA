@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getPlatformAuditEvents } from "../../../lib/platform/tenant-service";
 import { ShieldAlert, Shield } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const instant = false;
 
 interface AuditPageProps {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };

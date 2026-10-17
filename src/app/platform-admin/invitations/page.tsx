@@ -5,7 +5,7 @@ import { requirePlatformPermission } from "../../../lib/auth/platform";
 import { MailCheck, Shield } from "lucide-react";
 import { revokeTenantAdminInvitationAction } from "../actions";
 
-export const dynamic = "force-dynamic";
+export const instant = false;
 
 interface PlatformInvitationItem {
   id: string;

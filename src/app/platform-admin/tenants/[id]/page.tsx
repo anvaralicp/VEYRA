@@ -23,7 +23,7 @@ import {
   Layers,
 } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const instant = false;
 
 interface TenantDetailPageProps {
   params: Promise<{ id: string }> | { id: string };

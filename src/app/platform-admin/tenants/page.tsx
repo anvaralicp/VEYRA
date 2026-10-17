@@ -10,7 +10,7 @@ import {
   Shield,
 } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const instant = false;
 
 interface TenantsPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined };
