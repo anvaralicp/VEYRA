@@ -62,9 +62,17 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       throw new Error("FORBIDDEN: User is not a member of this tenant");
     }
 
-    const { isTenantSuspended } = await import("../platform/tenant-service");
+    const { isTenantSuspended, getTenantRestrictions } = await import("../platform/tenant-service");
     if (await isTenantSuspended(membership.tenant_id)) {
       throw new Error("FORBIDDEN: Tenant account is suspended. Please contact platform administration.");
+    }
+
+    const restrictions = await getTenantRestrictions(membership.tenant_id);
+    if (restrictions.is_security_restricted) {
+      throw new Error("FORBIDDEN: Tenant account is locked under security isolation. Please contact platform administration.");
+    }
+    if (restrictions.is_billing_restricted) {
+      throw new Error("FORBIDDEN: Tenant account is restricted due to billing delinquency. Please resolve outstanding invoices.");
     }
 
     return {
@@ -107,10 +115,18 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   // User has exactly 1 active membership: resolve it automatically
   if (activeMemberships.length === 1) {
     const single = activeMemberships[0];
-    const { isTenantSuspended } = await import("../platform/tenant-service");
+    const { isTenantSuspended, getTenantRestrictions } = await import("../platform/tenant-service");
     if (await isTenantSuspended(single.tenant_id)) {
       throw new Error("FORBIDDEN: Tenant account is suspended. Please contact platform administration.");
     }
+    const restrictions = await getTenantRestrictions(single.tenant_id);
+    if (restrictions.is_security_restricted) {
+      throw new Error("FORBIDDEN: Tenant account is locked under security isolation. Please contact platform administration.");
+    }
+    if (restrictions.is_billing_restricted) {
+      throw new Error("FORBIDDEN: Tenant account is restricted due to billing delinquency. Please resolve outstanding invoices.");
+    }
+
     return {
       tenantId: single.tenant_id,
       userId: single.user_id,

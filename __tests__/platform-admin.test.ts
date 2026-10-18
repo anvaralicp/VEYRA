@@ -590,7 +590,15 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
     });
 
     it("REACTIVATION: Platform admin can reactivate a suspended tenant account", async () => {
-      mockTenantModel.findUnique.mockResolvedValue({ id: "t-1" });
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-1",
+        version: 1,
+        lifecycle_status: "SUSPENDED",
+        is_security_restricted: false,
+        is_policy_restricted: false,
+        is_billing_restricted: false,
+        is_administrative_restricted: false,
+      });
       mockAuditLogModel.findMany.mockResolvedValue([
         {
           id: "log-suspend-1",
@@ -630,7 +638,15 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
     });
 
     it("SUSPENSION VALIDATION: Rejects duplicate suspension of already suspended tenant", async () => {
-      mockTenantModel.findUnique.mockResolvedValue({ id: "t-1" });
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-1",
+        version: 1,
+        lifecycle_status: "SUSPENDED",
+        is_security_restricted: false,
+        is_policy_restricted: false,
+        is_billing_restricted: false,
+        is_administrative_restricted: false,
+      });
       mockAuditLogModel.findMany.mockResolvedValue([
         {
           id: "log-1",
@@ -1209,18 +1225,35 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
     });
 
     it("CONCURRENT SUSPENSION: Serializes concurrent suspend requests; exactly one succeeds and second is rejected", async () => {
-      mockTenantModel.findUnique.mockResolvedValue({ id: "t-concurrent" });
-      mockTenantModel.update.mockResolvedValue({});
+      const simulatedTenant = {
+        id: "t-concurrent",
+        version: 1,
+        lifecycle_status: "ACTIVE",
+        is_security_restricted: false,
+        is_policy_restricted: false,
+        is_billing_restricted: false,
+        is_administrative_restricted: false,
+      };
+      mockTenantModel.findUnique.mockImplementation(async () => ({ ...simulatedTenant }));
+      mockTenantModel.update.mockImplementation(async (args: any) => {
+        if (args?.data?.lifecycle_status) {
+          simulatedTenant.lifecycle_status = args.data.lifecycle_status;
+        }
+        if (typeof args?.data?.version === "number") {
+          simulatedTenant.version = args.data.version;
+        }
+        return { ...simulatedTenant };
+      });
 
       const simulatedAuditLogs: any[] = [];
       mockAuditLogModel.findMany.mockImplementation(async () => simulatedAuditLogs.slice());
       mockAuditLogModel.create.mockImplementation(async (args: any) => {
         simulatedAuditLogs.unshift({
           id: `log-${Date.now()}-${Math.random()}`,
-          action: args.data.action,
-          entity: args.data.entity,
+          action: args.action || args.data?.action,
+          entity: args.entity || args.data?.entity,
           created_at: new Date(),
-          details: args.data.details,
+          details: args.details || args.data?.details,
         });
         return {};
       });
@@ -1262,8 +1295,25 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
     });
 
     it("CONCURRENT REACTIVATION: Serializes concurrent reactivate requests; exactly one succeeds and second is rejected", async () => {
-      mockTenantModel.findUnique.mockResolvedValue({ id: "t-reactivate" });
-      mockTenantModel.update.mockResolvedValue({});
+      const simulatedTenant = {
+        id: "t-reactivate",
+        version: 1,
+        lifecycle_status: "SUSPENDED",
+        is_security_restricted: false,
+        is_policy_restricted: false,
+        is_billing_restricted: false,
+        is_administrative_restricted: false,
+      };
+      mockTenantModel.findUnique.mockImplementation(async () => ({ ...simulatedTenant }));
+      mockTenantModel.update.mockImplementation(async (args: any) => {
+        if (args?.data?.lifecycle_status) {
+          simulatedTenant.lifecycle_status = args.data.lifecycle_status;
+        }
+        if (typeof args?.data?.version === "number") {
+          simulatedTenant.version = args.data.version;
+        }
+        return { ...simulatedTenant };
+      });
 
       const simulatedAuditLogs: any[] = [
         {
@@ -1278,10 +1328,10 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
       mockAuditLogModel.create.mockImplementation(async (args: any) => {
         simulatedAuditLogs.unshift({
           id: `log-${Date.now()}-${Math.random()}`,
-          action: args.data.action,
-          entity: args.data.entity,
+          action: args.action || args.data?.action,
+          entity: args.entity || args.data?.entity,
           created_at: new Date(),
-          details: args.data.details,
+          details: args.details || args.data?.details,
         });
         return {};
       });

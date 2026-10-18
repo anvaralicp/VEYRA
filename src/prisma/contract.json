@@ -120,6 +120,18 @@
       "model": "MemberRole",
       "namespace": "public"
     },
+    "MigrationBatchBaseline": {
+      "model": "MigrationBatchBaseline",
+      "namespace": "public"
+    },
+    "MigrationManifestItem": {
+      "model": "MigrationManifestItem",
+      "namespace": "public"
+    },
+    "MigrationWatermark": {
+      "model": "MigrationWatermark",
+      "namespace": "public"
+    },
     "Opportunity": {
       "model": "Opportunity",
       "namespace": "public"
@@ -162,6 +174,10 @@
     },
     "QuotationRevision": {
       "model": "QuotationRevision",
+      "namespace": "public"
+    },
+    "ReconciliationAnomaly": {
+      "model": "ReconciliationAnomaly",
       "namespace": "public"
     },
     "Requirement": {
@@ -6467,6 +6483,441 @@
               "table": "MemberRole"
             }
           },
+          "MigrationBatchBaseline": {
+            "fields": {
+              "attempt_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "batch_cursor": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "captured_at": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "migration_key": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "pre_administrative": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "pre_billing": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "pre_lifecycle_status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "pre_policy": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "pre_security": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "pre_version": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "tenant_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "watermark": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ],
+                  "targetFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ]
+                },
+                "to": {
+                  "model": "MigrationWatermark",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "attempt_id": {
+                  "column": "attempt_id"
+                },
+                "batch_cursor": {
+                  "column": "batch_cursor"
+                },
+                "captured_at": {
+                  "column": "captured_at"
+                },
+                "migration_key": {
+                  "column": "migration_key"
+                },
+                "pre_administrative": {
+                  "column": "pre_administrative"
+                },
+                "pre_billing": {
+                  "column": "pre_billing"
+                },
+                "pre_lifecycle_status": {
+                  "column": "pre_lifecycle_status"
+                },
+                "pre_policy": {
+                  "column": "pre_policy"
+                },
+                "pre_security": {
+                  "column": "pre_security"
+                },
+                "pre_version": {
+                  "column": "pre_version"
+                },
+                "tenant_id": {
+                  "column": "tenant_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "MigrationBatchBaseline"
+            }
+          },
+          "MigrationManifestItem": {
+            "fields": {
+              "attempt_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "migration_key": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "processed_at": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "tenant_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "watermark": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ],
+                  "targetFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ]
+                },
+                "to": {
+                  "model": "MigrationWatermark",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "attempt_id": {
+                  "column": "attempt_id"
+                },
+                "migration_key": {
+                  "column": "migration_key"
+                },
+                "processed_at": {
+                  "column": "processed_at"
+                },
+                "status": {
+                  "column": "status"
+                },
+                "tenant_id": {
+                  "column": "tenant_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "MigrationManifestItem"
+            }
+          },
+          "MigrationWatermark": {
+            "fields": {
+              "attempt_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "batch_state": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "checksum": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "completed_at": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "error_details": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "in_flight_batch_end": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "in_flight_batch_start": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "last_processed_id": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "manifest_digest": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "migration_key": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "processed_records": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "started_at": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "status": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "total_records": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "anomalies": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ],
+                  "targetFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ]
+                },
+                "to": {
+                  "model": "ReconciliationAnomaly",
+                  "namespace": "public"
+                }
+              },
+              "batch_baselines": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ],
+                  "targetFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ]
+                },
+                "to": {
+                  "model": "MigrationBatchBaseline",
+                  "namespace": "public"
+                }
+              },
+              "manifest_items": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ],
+                  "targetFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ]
+                },
+                "to": {
+                  "model": "MigrationManifestItem",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "attempt_id": {
+                  "column": "attempt_id"
+                },
+                "batch_state": {
+                  "column": "batch_state"
+                },
+                "checksum": {
+                  "column": "checksum"
+                },
+                "completed_at": {
+                  "column": "completed_at"
+                },
+                "error_details": {
+                  "column": "error_details"
+                },
+                "in_flight_batch_end": {
+                  "column": "in_flight_batch_end"
+                },
+                "in_flight_batch_start": {
+                  "column": "in_flight_batch_start"
+                },
+                "last_processed_id": {
+                  "column": "last_processed_id"
+                },
+                "manifest_digest": {
+                  "column": "manifest_digest"
+                },
+                "migration_key": {
+                  "column": "migration_key"
+                },
+                "processed_records": {
+                  "column": "processed_records"
+                },
+                "started_at": {
+                  "column": "started_at"
+                },
+                "status": {
+                  "column": "status"
+                },
+                "total_records": {
+                  "column": "total_records"
+                }
+              },
+              "namespaceId": "public",
+              "table": "MigrationWatermark"
+            }
+          },
           "Opportunity": {
             "fields": {
               "closed_at": {
@@ -9246,6 +9697,152 @@
               },
               "namespaceId": "public",
               "table": "QuotationRevision"
+            }
+          },
+          "ReconciliationAnomaly": {
+            "fields": {
+              "anomaly_type": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "attempt_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "detected_at": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "migration_key": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "raw_payload": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "resolution_note": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "resolved": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "resolved_at": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/timestamp-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 3
+                  }
+                }
+              },
+              "resolved_by": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "tenant_id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "watermark": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ],
+                  "targetFields": [
+                    "migration_key",
+                    "attempt_id"
+                  ]
+                },
+                "to": {
+                  "model": "MigrationWatermark",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "anomaly_type": {
+                  "column": "anomaly_type"
+                },
+                "attempt_id": {
+                  "column": "attempt_id"
+                },
+                "detected_at": {
+                  "column": "detected_at"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "migration_key": {
+                  "column": "migration_key"
+                },
+                "raw_payload": {
+                  "column": "raw_payload"
+                },
+                "resolution_note": {
+                  "column": "resolution_note"
+                },
+                "resolved": {
+                  "column": "resolved"
+                },
+                "resolved_at": {
+                  "column": "resolved_at"
+                },
+                "resolved_by": {
+                  "column": "resolved_by"
+                },
+                "tenant_id": {
+                  "column": "tenant_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "ReconciliationAnomaly"
             }
           },
           "Requirement": {
@@ -12077,8 +12674,43 @@
                   "kind": "scalar"
                 }
               },
+              "is_administrative_restricted": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "is_billing_restricted": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "is_policy_restricted": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "is_security_restricted": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
               "legal_name": {
                 "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "lifecycle_status": {
+                "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
@@ -12141,6 +12773,13 @@
                   "typeParams": {
                     "precision": 3
                   }
+                }
+              },
+              "version": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
                 }
               },
               "website": {
@@ -12651,8 +13290,23 @@
                 "id": {
                   "column": "id"
                 },
+                "is_administrative_restricted": {
+                  "column": "is_administrative_restricted"
+                },
+                "is_billing_restricted": {
+                  "column": "is_billing_restricted"
+                },
+                "is_policy_restricted": {
+                  "column": "is_policy_restricted"
+                },
+                "is_security_restricted": {
+                  "column": "is_security_restricted"
+                },
                 "legal_name": {
                   "column": "legal_name"
+                },
+                "lifecycle_status": {
+                  "column": "lifecycle_status"
                 },
                 "name": {
                   "column": "name"
@@ -12677,6 +13331,9 @@
                 },
                 "updated_at": {
                   "column": "updated_at"
+                },
+                "version": {
+                  "column": "version"
                 },
                 "website": {
                   "column": "website"
@@ -18039,6 +18696,315 @@
               },
               "uniques": []
             },
+            "MigrationBatchBaseline": {
+              "columns": {
+                "attempt_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "batch_cursor": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "captured_at": {
+                  "codecId": "pg/timestamp-string@1",
+                  "dataType": "pg/timestamp",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "migration_key": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "pre_administrative": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "nullable": false
+                },
+                "pre_billing": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "nullable": false
+                },
+                "pre_lifecycle_status": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "pre_policy": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "nullable": false
+                },
+                "pre_security": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "nullable": false
+                },
+                "pre_version": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "nullable": false
+                },
+                "tenant_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "index": {
+                    "name": "MigrationBatchBaseline_migration_key_attempt_id_batch_curso_idx"
+                  },
+                  "onDelete": "restrict",
+                  "onUpdate": "cascade",
+                  "source": {
+                    "columns": [
+                      "migration_key",
+                      "attempt_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "MigrationBatchBaseline"
+                  },
+                  "target": {
+                    "columns": [
+                      "migration_key",
+                      "attempt_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "MigrationWatermark"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "migration_key",
+                    "attempt_id",
+                    "batch_cursor"
+                  ],
+                  "name": "MigrationBatchBaseline_migration_key_attempt_id_batch_curso_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "migration_key",
+                  "attempt_id",
+                  "batch_cursor",
+                  "tenant_id"
+                ]
+              },
+              "uniques": []
+            },
+            "MigrationManifestItem": {
+              "columns": {
+                "attempt_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "migration_key": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "processed_at": {
+                  "codecId": "pg/timestamp-string@1",
+                  "dataType": "pg/timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "PENDING"
+                  },
+                  "nullable": false
+                },
+                "tenant_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "index": {
+                    "name": "MigrationManifestItem_migration_key_attempt_id_status_idx"
+                  },
+                  "onDelete": "restrict",
+                  "onUpdate": "cascade",
+                  "source": {
+                    "columns": [
+                      "migration_key",
+                      "attempt_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "MigrationManifestItem"
+                  },
+                  "target": {
+                    "columns": [
+                      "migration_key",
+                      "attempt_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "MigrationWatermark"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "migration_key",
+                    "attempt_id",
+                    "status"
+                  ],
+                  "name": "MigrationManifestItem_migration_key_attempt_id_status_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "migration_key",
+                  "attempt_id",
+                  "tenant_id"
+                ]
+              },
+              "uniques": []
+            },
+            "MigrationWatermark": {
+              "columns": {
+                "attempt_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "batch_state": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "IDLE"
+                  },
+                  "nullable": false
+                },
+                "checksum": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "completed_at": {
+                  "codecId": "pg/timestamp-string@1",
+                  "dataType": "pg/timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "error_details": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "in_flight_batch_end": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "in_flight_batch_start": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "last_processed_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "manifest_digest": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "migration_key": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "processed_records": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nullable": false
+                },
+                "started_at": {
+                  "codecId": "pg/timestamp-string@1",
+                  "dataType": "pg/timestamp",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "status": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "PENDING"
+                  },
+                  "nullable": false
+                },
+                "total_records": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "default": {
+                    "kind": "literal",
+                    "value": 0
+                  },
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [],
+              "indexes": [
+                {
+                  "columns": [
+                    "migration_key",
+                    "status"
+                  ],
+                  "name": "MigrationWatermark_migration_key_status_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "migration_key",
+                  "attempt_id"
+                ]
+              },
+              "uniques": []
+            },
             "Opportunity": {
               "columns": {
                 "closed_at": {
@@ -19958,6 +20924,121 @@
                   ],
                   "name": "QuotationRevision_quotation_id_revision_number_key",
                   "unique": true
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "ReconciliationAnomaly": {
+              "columns": {
+                "anomaly_type": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "attempt_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "detected_at": {
+                  "codecId": "pg/timestamp-string@1",
+                  "dataType": "pg/timestamp",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "migration_key": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                },
+                "raw_payload": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "resolution_note": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "resolved": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nullable": false
+                },
+                "resolved_at": {
+                  "codecId": "pg/timestamp-string@1",
+                  "dataType": "pg/timestamp",
+                  "nullable": true,
+                  "typeParams": {
+                    "precision": 3
+                  }
+                },
+                "resolved_by": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": true
+                },
+                "tenant_id": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "index": {
+                    "name": "ReconciliationAnomaly_migration_key_attempt_id_resolved_idx"
+                  },
+                  "onDelete": "restrict",
+                  "onUpdate": "cascade",
+                  "source": {
+                    "columns": [
+                      "migration_key",
+                      "attempt_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "ReconciliationAnomaly"
+                  },
+                  "target": {
+                    "columns": [
+                      "migration_key",
+                      "attempt_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "MigrationWatermark"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "migration_key",
+                    "attempt_id",
+                    "resolved"
+                  ],
+                  "name": "ReconciliationAnomaly_migration_key_attempt_id_resolved_idx",
+                  "unique": false
                 }
               ],
               "primaryKey": {
@@ -22056,10 +23137,55 @@
                   "dataType": "pg/text",
                   "nullable": false
                 },
+                "is_administrative_restricted": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nullable": false
+                },
+                "is_billing_restricted": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nullable": false
+                },
+                "is_policy_restricted": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nullable": false
+                },
+                "is_security_restricted": {
+                  "codecId": "pg/bool@1",
+                  "dataType": "pg/bool",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nullable": false
+                },
                 "legal_name": {
                   "codecId": "pg/text@1",
                   "dataType": "pg/text",
                   "nullable": true
+                },
+                "lifecycle_status": {
+                  "codecId": "pg/text@1",
+                  "dataType": "pg/text",
+                  "default": {
+                    "kind": "literal",
+                    "value": "ACTIVE"
+                  },
+                  "nullable": false
                 },
                 "name": {
                   "codecId": "pg/text@1",
@@ -22108,6 +23234,15 @@
                     "precision": 3
                   }
                 },
+                "version": {
+                  "codecId": "pg/int4@1",
+                  "dataType": "pg/int4",
+                  "default": {
+                    "kind": "literal",
+                    "value": 1
+                  },
+                  "nullable": false
+                },
                 "website": {
                   "codecId": "pg/text@1",
                   "dataType": "pg/text",
@@ -22115,7 +23250,29 @@
                 }
               },
               "foreignKeys": [],
-              "indexes": [],
+              "indexes": [
+                {
+                  "columns": [
+                    "is_billing_restricted"
+                  ],
+                  "name": "Tenant_is_billing_restricted_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "is_security_restricted"
+                  ],
+                  "name": "Tenant_is_security_restricted_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "lifecycle_status"
+                  ],
+                  "name": "Tenant_lifecycle_status_idx",
+                  "unique": false
+                }
+              ],
               "primaryKey": {
                 "columns": [
                   "id"
@@ -22732,10 +23889,10 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "6e759b1fbdd320a6aab15695a1f5b8210c9cb6f00212665c00adceac0741de93"
+    "storageHash": "cd65d11bdea924d96d13781d82ead21e057c32ebd0660ca35a12162407419e82"
   },
   "execution": {
-    "executionHash": "d0999d7c7df3fb8368aca06fb9f8e0fcfe3ec9d58f82422d3bec60068eb91156",
+    "executionHash": "8e8b6ca2c76d6e39f986ef0ed13fa14efaf44cc65ed2c79b755fa7335d6bd09d",
     "mutations": {
       "defaults": [
         {
@@ -23564,6 +24721,17 @@
           },
           "ref": {
             "entry": "QuotationRevision",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "uuidv4",
+            "kind": "generator"
+          },
+          "ref": {
+            "entry": "ReconciliationAnomaly",
             "field": "id",
             "namespace": "public"
           }

@@ -15,31 +15,81 @@ export async function updateOrganization(formData: FormData) {
   await requirePermission("organization.update");
   const context = await getTenantContext();
 
-  // Tenant isn't in TENANT_OWNED_MODELS since it's the root itself.
-  // We must carefully update ONLY the current tenant's ID using raw db.
-  const Tenant = getModel(db, "Tenant");
-  if (!Tenant) throw new Error("Tenant model not available");
-  await Tenant.update({
-    where: { id: context.tenantId },
-    data: {
-      name: formData.get("name") as string,
-      legal_name: formData.get("legal_name") as string,
-      registration_number: formData.get("registration_number") as string,
-      gstin: formData.get("gstin") as string,
-      pan: formData.get("pan") as string,
-      website: formData.get("website") as string,
-      email: formData.get("email") as string,
-      phone: formData.get("phone") as string,
-      address: formData.get("address") as string,
-      city: formData.get("city") as string,
-      state: formData.get("state") as string,
-      country: formData.get("country") as string,
-      postal_code: formData.get("postal_code") as string,
-      timezone: formData.get("timezone") as string || "UTC",
-    }
-  });
+  const { runTransaction } = await import("../../../lib/db/legacy-adapter");
+  const { logAuditTx } = await import("../../../lib/audit/logger");
 
-  await logAudit("UPDATE", "Organization", context.tenantId);
+  await runTransaction(db, async (tx: any) => {
+    const Tenant = getModel(tx, "Tenant");
+    if (!Tenant) throw new Error("Tenant model not available");
+
+    const now = new Date();
+    // 1. Acquire row lock
+    await Tenant.update({
+      where: { id: context.tenantId },
+      data: { updated_at: now },
+    });
+
+    // 2. Read authoritative state under lock
+    const currentTenant = await Tenant.findUnique({
+      where: { id: context.tenantId },
+      select: {
+        id: true,
+        version: true,
+        lifecycle_status: true,
+        is_security_restricted: true,
+        is_policy_restricted: true,
+        is_billing_restricted: true,
+        is_administrative_restricted: true,
+      },
+    });
+    if (!currentTenant) throw new Error("Tenant not found");
+
+    const currentVersion = typeof currentTenant.version === "number" ? currentTenant.version : 1;
+    const targetVersion = currentVersion + 1;
+
+    // 3. Mutate organization profile fields and increment version atomically (Class B)
+    // Strictly leaves lifecycle and restriction columns untouched
+    await Tenant.update({
+      where: { id: context.tenantId },
+      data: {
+        name: formData.get("name") as string,
+        legal_name: formData.get("legal_name") as string,
+        registration_number: formData.get("registration_number") as string,
+        gstin: formData.get("gstin") as string,
+        pan: formData.get("pan") as string,
+        website: formData.get("website") as string,
+        email: formData.get("email") as string,
+        phone: formData.get("phone") as string,
+        address: formData.get("address") as string,
+        city: formData.get("city") as string,
+        state: formData.get("state") as string,
+        country: formData.get("country") as string,
+        postal_code: formData.get("postal_code") as string,
+        timezone: (formData.get("timezone") as string) || "UTC",
+        version: targetVersion,
+        updated_at: now,
+      },
+    });
+
+    // 4. Atomically record Class B audit log with fromVersion and toVersion
+    await logAuditTx(tx, {
+      tenantId: context.tenantId,
+      userId: context.userId,
+      action: "TENANT_UPDATE",
+      entity: "Tenant",
+      entityId: context.tenantId,
+      details: {
+        fromVersion: currentVersion,
+        toVersion: targetVersion,
+        actionClass: "CLASS_B",
+        updatedFields: [
+          "name", "legal_name", "registration_number", "gstin", "pan",
+          "website", "email", "phone", "address", "city", "state", "country", "postal_code", "timezone"
+        ],
+        source: "RUNTIME",
+      },
+    });
+  });
 }
 
 // --- BUSINESS UNITS ---

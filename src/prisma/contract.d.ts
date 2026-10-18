@@ -22,9 +22,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'6e759b1fbdd320a6aab15695a1f5b8210c9cb6f00212665c00adceac0741de93'>;
+  StorageHashBase<'cd65d11bdea924d96d13781d82ead21e057c32ebd0660ca35a12162407419e82'>;
 export type ExecutionHash =
-  ExecutionHashBase<'d0999d7c7df3fb8368aca06fb9f8e0fcfe3ec9d58f82422d3bec60068eb91156'>;
+  ExecutionHashBase<'8e8b6ca2c76d6e39f986ef0ed13fa14efaf44cc65ed2c79b755fa7335d6bd09d'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -691,6 +691,42 @@ export type FieldOutputTypes = {
       readonly role_id: CodecTypes['pg/text@1']['output'];
       readonly tenant_id: CodecTypes['pg/text@1']['output'];
     };
+    readonly MigrationBatchBaseline: {
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly batch_cursor: CodecTypes['pg/text@1']['output'];
+      readonly captured_at: TimestampString<3>;
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly pre_administrative: CodecTypes['pg/bool@1']['output'];
+      readonly pre_billing: CodecTypes['pg/bool@1']['output'];
+      readonly pre_lifecycle_status: CodecTypes['pg/text@1']['output'];
+      readonly pre_policy: CodecTypes['pg/bool@1']['output'];
+      readonly pre_security: CodecTypes['pg/bool@1']['output'];
+      readonly pre_version: CodecTypes['pg/int4@1']['output'];
+      readonly tenant_id: CodecTypes['pg/text@1']['output'];
+    };
+    readonly MigrationManifestItem: {
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly processed_at: TimestampString<3> | null;
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly tenant_id: CodecTypes['pg/text@1']['output'];
+    };
+    readonly MigrationWatermark: {
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly batch_state: CodecTypes['pg/text@1']['output'];
+      readonly checksum: CodecTypes['pg/text@1']['output'] | null;
+      readonly completed_at: TimestampString<3> | null;
+      readonly error_details: CodecTypes['pg/text@1']['output'] | null;
+      readonly in_flight_batch_end: CodecTypes['pg/text@1']['output'] | null;
+      readonly in_flight_batch_start: CodecTypes['pg/text@1']['output'] | null;
+      readonly last_processed_id: CodecTypes['pg/text@1']['output'] | null;
+      readonly manifest_digest: CodecTypes['pg/text@1']['output'] | null;
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly processed_records: CodecTypes['pg/int4@1']['output'];
+      readonly started_at: TimestampString<3>;
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly total_records: CodecTypes['pg/int4@1']['output'];
+    };
     readonly Opportunity: {
       readonly closed_at: TimestampString<3> | null;
       readonly created_at: TimestampString<3>;
@@ -890,6 +926,19 @@ export type FieldOutputTypes = {
       readonly total_tax: Numeric<65, 30>;
       readonly valid_until: TimestampString<3> | null;
       readonly warranty_terms: CodecTypes['pg/text@1']['output'] | null;
+    };
+    readonly ReconciliationAnomaly: {
+      readonly anomaly_type: CodecTypes['pg/text@1']['output'];
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly detected_at: TimestampString<3>;
+      readonly id: CodecTypes['pg/text@1']['output'];
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly raw_payload: CodecTypes['pg/text@1']['output'] | null;
+      readonly resolution_note: CodecTypes['pg/text@1']['output'] | null;
+      readonly resolved: CodecTypes['pg/bool@1']['output'];
+      readonly resolved_at: TimestampString<3> | null;
+      readonly resolved_by: CodecTypes['pg/text@1']['output'] | null;
+      readonly tenant_id: CodecTypes['pg/text@1']['output'];
     };
     readonly Requirement: {
       readonly business_need: CodecTypes['pg/text@1']['output'] | null;
@@ -1102,7 +1151,12 @@ export type FieldOutputTypes = {
       readonly email: CodecTypes['pg/text@1']['output'] | null;
       readonly gstin: CodecTypes['pg/text@1']['output'] | null;
       readonly id: CodecTypes['pg/text@1']['output'];
+      readonly is_administrative_restricted: CodecTypes['pg/bool@1']['output'];
+      readonly is_billing_restricted: CodecTypes['pg/bool@1']['output'];
+      readonly is_policy_restricted: CodecTypes['pg/bool@1']['output'];
+      readonly is_security_restricted: CodecTypes['pg/bool@1']['output'];
       readonly legal_name: CodecTypes['pg/text@1']['output'] | null;
+      readonly lifecycle_status: CodecTypes['pg/text@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
       readonly pan: CodecTypes['pg/text@1']['output'] | null;
       readonly phone: CodecTypes['pg/text@1']['output'] | null;
@@ -1111,6 +1165,7 @@ export type FieldOutputTypes = {
       readonly state: CodecTypes['pg/text@1']['output'] | null;
       readonly timezone: CodecTypes['pg/text@1']['output'];
       readonly updated_at: TimestampString<3>;
+      readonly version: CodecTypes['pg/int4@1']['output'];
       readonly website: CodecTypes['pg/text@1']['output'] | null;
     };
     readonly TenantMember: {
@@ -1635,6 +1690,42 @@ export type FieldInputTypes = {
       readonly role_id: CodecTypes['pg/text@1']['input'];
       readonly tenant_id: CodecTypes['pg/text@1']['input'];
     };
+    readonly MigrationBatchBaseline: {
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly batch_cursor: CodecTypes['pg/text@1']['input'];
+      readonly captured_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly pre_administrative: CodecTypes['pg/bool@1']['input'];
+      readonly pre_billing: CodecTypes['pg/bool@1']['input'];
+      readonly pre_lifecycle_status: CodecTypes['pg/text@1']['input'];
+      readonly pre_policy: CodecTypes['pg/bool@1']['input'];
+      readonly pre_security: CodecTypes['pg/bool@1']['input'];
+      readonly pre_version: CodecTypes['pg/int4@1']['input'];
+      readonly tenant_id: CodecTypes['pg/text@1']['input'];
+    };
+    readonly MigrationManifestItem: {
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly processed_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
+      readonly status: CodecTypes['pg/text@1']['input'];
+      readonly tenant_id: CodecTypes['pg/text@1']['input'];
+    };
+    readonly MigrationWatermark: {
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly batch_state: CodecTypes['pg/text@1']['input'];
+      readonly checksum: CodecTypes['pg/text@1']['input'] | null;
+      readonly completed_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
+      readonly error_details: CodecTypes['pg/text@1']['input'] | null;
+      readonly in_flight_batch_end: CodecTypes['pg/text@1']['input'] | null;
+      readonly in_flight_batch_start: CodecTypes['pg/text@1']['input'] | null;
+      readonly last_processed_id: CodecTypes['pg/text@1']['input'] | null;
+      readonly manifest_digest: CodecTypes['pg/text@1']['input'] | null;
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly processed_records: CodecTypes['pg/int4@1']['input'];
+      readonly started_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly status: CodecTypes['pg/text@1']['input'];
+      readonly total_records: CodecTypes['pg/int4@1']['input'];
+    };
     readonly Opportunity: {
       readonly closed_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
       readonly created_at: CodecTypes['pg/timestamp-string@1']['input'];
@@ -1834,6 +1925,19 @@ export type FieldInputTypes = {
       readonly total_tax: CodecTypes['pg/numeric@1']['input'];
       readonly valid_until: CodecTypes['pg/timestamp-string@1']['input'] | null;
       readonly warranty_terms: CodecTypes['pg/text@1']['input'] | null;
+    };
+    readonly ReconciliationAnomaly: {
+      readonly anomaly_type: CodecTypes['pg/text@1']['input'];
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly detected_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly id: CodecTypes['pg/text@1']['input'];
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly raw_payload: CodecTypes['pg/text@1']['input'] | null;
+      readonly resolution_note: CodecTypes['pg/text@1']['input'] | null;
+      readonly resolved: CodecTypes['pg/bool@1']['input'];
+      readonly resolved_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
+      readonly resolved_by: CodecTypes['pg/text@1']['input'] | null;
+      readonly tenant_id: CodecTypes['pg/text@1']['input'];
     };
     readonly Requirement: {
       readonly business_need: CodecTypes['pg/text@1']['input'] | null;
@@ -2046,7 +2150,12 @@ export type FieldInputTypes = {
       readonly email: CodecTypes['pg/text@1']['input'] | null;
       readonly gstin: CodecTypes['pg/text@1']['input'] | null;
       readonly id: CodecTypes['pg/text@1']['input'];
+      readonly is_administrative_restricted: CodecTypes['pg/bool@1']['input'];
+      readonly is_billing_restricted: CodecTypes['pg/bool@1']['input'];
+      readonly is_policy_restricted: CodecTypes['pg/bool@1']['input'];
+      readonly is_security_restricted: CodecTypes['pg/bool@1']['input'];
       readonly legal_name: CodecTypes['pg/text@1']['input'] | null;
+      readonly lifecycle_status: CodecTypes['pg/text@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
       readonly pan: CodecTypes['pg/text@1']['input'] | null;
       readonly phone: CodecTypes['pg/text@1']['input'] | null;
@@ -2055,6 +2164,7 @@ export type FieldInputTypes = {
       readonly state: CodecTypes['pg/text@1']['input'] | null;
       readonly timezone: CodecTypes['pg/text@1']['input'];
       readonly updated_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly version: CodecTypes['pg/int4@1']['input'];
       readonly website: CodecTypes['pg/text@1']['input'] | null;
     };
     readonly TenantMember: {
@@ -2579,6 +2689,42 @@ export type StorageColumnTypes = {
       readonly role_id: CodecTypes['pg/text@1']['output'];
       readonly tenant_id: CodecTypes['pg/text@1']['output'];
     };
+    readonly MigrationBatchBaseline: {
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly batch_cursor: CodecTypes['pg/text@1']['output'];
+      readonly captured_at: TimestampString<3>;
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly pre_administrative: CodecTypes['pg/bool@1']['output'];
+      readonly pre_billing: CodecTypes['pg/bool@1']['output'];
+      readonly pre_lifecycle_status: CodecTypes['pg/text@1']['output'];
+      readonly pre_policy: CodecTypes['pg/bool@1']['output'];
+      readonly pre_security: CodecTypes['pg/bool@1']['output'];
+      readonly pre_version: CodecTypes['pg/int4@1']['output'];
+      readonly tenant_id: CodecTypes['pg/text@1']['output'];
+    };
+    readonly MigrationManifestItem: {
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly processed_at: TimestampString<3> | null;
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly tenant_id: CodecTypes['pg/text@1']['output'];
+    };
+    readonly MigrationWatermark: {
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly batch_state: CodecTypes['pg/text@1']['output'];
+      readonly checksum: CodecTypes['pg/text@1']['output'] | null;
+      readonly completed_at: TimestampString<3> | null;
+      readonly error_details: CodecTypes['pg/text@1']['output'] | null;
+      readonly in_flight_batch_end: CodecTypes['pg/text@1']['output'] | null;
+      readonly in_flight_batch_start: CodecTypes['pg/text@1']['output'] | null;
+      readonly last_processed_id: CodecTypes['pg/text@1']['output'] | null;
+      readonly manifest_digest: CodecTypes['pg/text@1']['output'] | null;
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly processed_records: CodecTypes['pg/int4@1']['output'];
+      readonly started_at: TimestampString<3>;
+      readonly status: CodecTypes['pg/text@1']['output'];
+      readonly total_records: CodecTypes['pg/int4@1']['output'];
+    };
     readonly Opportunity: {
       readonly closed_at: TimestampString<3> | null;
       readonly created_at: TimestampString<3>;
@@ -2778,6 +2924,19 @@ export type StorageColumnTypes = {
       readonly total_tax: Numeric<65, 30>;
       readonly valid_until: TimestampString<3> | null;
       readonly warranty_terms: CodecTypes['pg/text@1']['output'] | null;
+    };
+    readonly ReconciliationAnomaly: {
+      readonly anomaly_type: CodecTypes['pg/text@1']['output'];
+      readonly attempt_id: CodecTypes['pg/text@1']['output'];
+      readonly detected_at: TimestampString<3>;
+      readonly id: CodecTypes['pg/text@1']['output'];
+      readonly migration_key: CodecTypes['pg/text@1']['output'];
+      readonly raw_payload: CodecTypes['pg/text@1']['output'] | null;
+      readonly resolution_note: CodecTypes['pg/text@1']['output'] | null;
+      readonly resolved: CodecTypes['pg/bool@1']['output'];
+      readonly resolved_at: TimestampString<3> | null;
+      readonly resolved_by: CodecTypes['pg/text@1']['output'] | null;
+      readonly tenant_id: CodecTypes['pg/text@1']['output'];
     };
     readonly Requirement: {
       readonly business_need: CodecTypes['pg/text@1']['output'] | null;
@@ -2990,7 +3149,12 @@ export type StorageColumnTypes = {
       readonly email: CodecTypes['pg/text@1']['output'] | null;
       readonly gstin: CodecTypes['pg/text@1']['output'] | null;
       readonly id: CodecTypes['pg/text@1']['output'];
+      readonly is_administrative_restricted: CodecTypes['pg/bool@1']['output'];
+      readonly is_billing_restricted: CodecTypes['pg/bool@1']['output'];
+      readonly is_policy_restricted: CodecTypes['pg/bool@1']['output'];
+      readonly is_security_restricted: CodecTypes['pg/bool@1']['output'];
       readonly legal_name: CodecTypes['pg/text@1']['output'] | null;
+      readonly lifecycle_status: CodecTypes['pg/text@1']['output'];
       readonly name: CodecTypes['pg/text@1']['output'];
       readonly pan: CodecTypes['pg/text@1']['output'] | null;
       readonly phone: CodecTypes['pg/text@1']['output'] | null;
@@ -2999,6 +3163,7 @@ export type StorageColumnTypes = {
       readonly state: CodecTypes['pg/text@1']['output'] | null;
       readonly timezone: CodecTypes['pg/text@1']['output'];
       readonly updated_at: TimestampString<3>;
+      readonly version: CodecTypes['pg/int4@1']['output'];
       readonly website: CodecTypes['pg/text@1']['output'] | null;
     };
     readonly TenantMember: {
@@ -3523,6 +3688,42 @@ export type StorageColumnInputTypes = {
       readonly role_id: CodecTypes['pg/text@1']['input'];
       readonly tenant_id: CodecTypes['pg/text@1']['input'];
     };
+    readonly MigrationBatchBaseline: {
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly batch_cursor: CodecTypes['pg/text@1']['input'];
+      readonly captured_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly pre_administrative: CodecTypes['pg/bool@1']['input'];
+      readonly pre_billing: CodecTypes['pg/bool@1']['input'];
+      readonly pre_lifecycle_status: CodecTypes['pg/text@1']['input'];
+      readonly pre_policy: CodecTypes['pg/bool@1']['input'];
+      readonly pre_security: CodecTypes['pg/bool@1']['input'];
+      readonly pre_version: CodecTypes['pg/int4@1']['input'];
+      readonly tenant_id: CodecTypes['pg/text@1']['input'];
+    };
+    readonly MigrationManifestItem: {
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly processed_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
+      readonly status: CodecTypes['pg/text@1']['input'];
+      readonly tenant_id: CodecTypes['pg/text@1']['input'];
+    };
+    readonly MigrationWatermark: {
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly batch_state: CodecTypes['pg/text@1']['input'];
+      readonly checksum: CodecTypes['pg/text@1']['input'] | null;
+      readonly completed_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
+      readonly error_details: CodecTypes['pg/text@1']['input'] | null;
+      readonly in_flight_batch_end: CodecTypes['pg/text@1']['input'] | null;
+      readonly in_flight_batch_start: CodecTypes['pg/text@1']['input'] | null;
+      readonly last_processed_id: CodecTypes['pg/text@1']['input'] | null;
+      readonly manifest_digest: CodecTypes['pg/text@1']['input'] | null;
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly processed_records: CodecTypes['pg/int4@1']['input'];
+      readonly started_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly status: CodecTypes['pg/text@1']['input'];
+      readonly total_records: CodecTypes['pg/int4@1']['input'];
+    };
     readonly Opportunity: {
       readonly closed_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
       readonly created_at: CodecTypes['pg/timestamp-string@1']['input'];
@@ -3722,6 +3923,19 @@ export type StorageColumnInputTypes = {
       readonly total_tax: CodecTypes['pg/numeric@1']['input'];
       readonly valid_until: CodecTypes['pg/timestamp-string@1']['input'] | null;
       readonly warranty_terms: CodecTypes['pg/text@1']['input'] | null;
+    };
+    readonly ReconciliationAnomaly: {
+      readonly anomaly_type: CodecTypes['pg/text@1']['input'];
+      readonly attempt_id: CodecTypes['pg/text@1']['input'];
+      readonly detected_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly id: CodecTypes['pg/text@1']['input'];
+      readonly migration_key: CodecTypes['pg/text@1']['input'];
+      readonly raw_payload: CodecTypes['pg/text@1']['input'] | null;
+      readonly resolution_note: CodecTypes['pg/text@1']['input'] | null;
+      readonly resolved: CodecTypes['pg/bool@1']['input'];
+      readonly resolved_at: CodecTypes['pg/timestamp-string@1']['input'] | null;
+      readonly resolved_by: CodecTypes['pg/text@1']['input'] | null;
+      readonly tenant_id: CodecTypes['pg/text@1']['input'];
     };
     readonly Requirement: {
       readonly business_need: CodecTypes['pg/text@1']['input'] | null;
@@ -3934,7 +4148,12 @@ export type StorageColumnInputTypes = {
       readonly email: CodecTypes['pg/text@1']['input'] | null;
       readonly gstin: CodecTypes['pg/text@1']['input'] | null;
       readonly id: CodecTypes['pg/text@1']['input'];
+      readonly is_administrative_restricted: CodecTypes['pg/bool@1']['input'];
+      readonly is_billing_restricted: CodecTypes['pg/bool@1']['input'];
+      readonly is_policy_restricted: CodecTypes['pg/bool@1']['input'];
+      readonly is_security_restricted: CodecTypes['pg/bool@1']['input'];
       readonly legal_name: CodecTypes['pg/text@1']['input'] | null;
+      readonly lifecycle_status: CodecTypes['pg/text@1']['input'];
       readonly name: CodecTypes['pg/text@1']['input'];
       readonly pan: CodecTypes['pg/text@1']['input'] | null;
       readonly phone: CodecTypes['pg/text@1']['input'] | null;
@@ -3943,6 +4162,7 @@ export type StorageColumnInputTypes = {
       readonly state: CodecTypes['pg/text@1']['input'] | null;
       readonly timezone: CodecTypes['pg/text@1']['input'];
       readonly updated_at: CodecTypes['pg/timestamp-string@1']['input'];
+      readonly version: CodecTypes['pg/int4@1']['input'];
       readonly website: CodecTypes['pg/text@1']['input'] | null;
     };
     readonly TenantMember: {
@@ -4650,6 +4870,50 @@ export namespace Models {
     tenant: public_Tenant;
     readonly [RelationKeys]?: 'member' | 'role' | 'tenant';
   };
+  export type public_MigrationBatchBaseline = {
+    attempt_id: CodecTypes['pg/text@1']['output'];
+    batch_cursor: CodecTypes['pg/text@1']['output'];
+    captured_at: TimestampString<3>;
+    migration_key: CodecTypes['pg/text@1']['output'];
+    pre_administrative: CodecTypes['pg/bool@1']['output'];
+    pre_billing: CodecTypes['pg/bool@1']['output'];
+    pre_lifecycle_status: CodecTypes['pg/text@1']['output'];
+    pre_policy: CodecTypes['pg/bool@1']['output'];
+    pre_security: CodecTypes['pg/bool@1']['output'];
+    pre_version: CodecTypes['pg/int4@1']['output'];
+    tenant_id: CodecTypes['pg/text@1']['output'];
+    watermark: public_MigrationWatermark;
+    readonly [RelationKeys]?: 'watermark';
+  };
+  export type public_MigrationManifestItem = {
+    attempt_id: CodecTypes['pg/text@1']['output'];
+    migration_key: CodecTypes['pg/text@1']['output'];
+    processed_at: TimestampString<3> | null;
+    status: CodecTypes['pg/text@1']['output'];
+    tenant_id: CodecTypes['pg/text@1']['output'];
+    watermark: public_MigrationWatermark;
+    readonly [RelationKeys]?: 'watermark';
+  };
+  export type public_MigrationWatermark = {
+    attempt_id: CodecTypes['pg/text@1']['output'];
+    batch_state: CodecTypes['pg/text@1']['output'];
+    checksum: CodecTypes['pg/text@1']['output'] | null;
+    completed_at: TimestampString<3> | null;
+    error_details: CodecTypes['pg/text@1']['output'] | null;
+    in_flight_batch_end: CodecTypes['pg/text@1']['output'] | null;
+    in_flight_batch_start: CodecTypes['pg/text@1']['output'] | null;
+    last_processed_id: CodecTypes['pg/text@1']['output'] | null;
+    manifest_digest: CodecTypes['pg/text@1']['output'] | null;
+    migration_key: CodecTypes['pg/text@1']['output'];
+    processed_records: CodecTypes['pg/int4@1']['output'];
+    started_at: TimestampString<3>;
+    status: CodecTypes['pg/text@1']['output'];
+    total_records: CodecTypes['pg/int4@1']['output'];
+    anomalies: public_ReconciliationAnomaly[];
+    batch_baselines: public_MigrationBatchBaseline[];
+    manifest_items: public_MigrationManifestItem[];
+    readonly [RelationKeys]?: 'anomalies' | 'batch_baselines' | 'manifest_items';
+  };
   export type public_Opportunity = {
     closed_at: TimestampString<3> | null;
     created_at: TimestampString<3>;
@@ -4930,6 +5194,21 @@ export namespace Models {
       | 'quotation'
       | 'tenant';
   };
+  export type public_ReconciliationAnomaly = {
+    anomaly_type: CodecTypes['pg/text@1']['output'];
+    attempt_id: CodecTypes['pg/text@1']['output'];
+    detected_at: TimestampString<3>;
+    id: CodecTypes['pg/text@1']['output'];
+    migration_key: CodecTypes['pg/text@1']['output'];
+    raw_payload: CodecTypes['pg/text@1']['output'] | null;
+    resolution_note: CodecTypes['pg/text@1']['output'] | null;
+    resolved: CodecTypes['pg/bool@1']['output'];
+    resolved_at: TimestampString<3> | null;
+    resolved_by: CodecTypes['pg/text@1']['output'] | null;
+    tenant_id: CodecTypes['pg/text@1']['output'];
+    watermark: public_MigrationWatermark;
+    readonly [RelationKeys]?: 'watermark';
+  };
   export type public_Requirement = {
     business_need: CodecTypes['pg/text@1']['output'] | null;
     created_at: TimestampString<3>;
@@ -5207,7 +5486,12 @@ export namespace Models {
     email: CodecTypes['pg/text@1']['output'] | null;
     gstin: CodecTypes['pg/text@1']['output'] | null;
     id: CodecTypes['pg/text@1']['output'];
+    is_administrative_restricted: CodecTypes['pg/bool@1']['output'];
+    is_billing_restricted: CodecTypes['pg/bool@1']['output'];
+    is_policy_restricted: CodecTypes['pg/bool@1']['output'];
+    is_security_restricted: CodecTypes['pg/bool@1']['output'];
     legal_name: CodecTypes['pg/text@1']['output'] | null;
+    lifecycle_status: CodecTypes['pg/text@1']['output'];
     name: CodecTypes['pg/text@1']['output'];
     pan: CodecTypes['pg/text@1']['output'] | null;
     phone: CodecTypes['pg/text@1']['output'] | null;
@@ -5216,6 +5500,7 @@ export namespace Models {
     state: CodecTypes['pg/text@1']['output'] | null;
     timezone: CodecTypes['pg/text@1']['output'];
     updated_at: TimestampString<3>;
+    version: CodecTypes['pg/int4@1']['output'];
     website: CodecTypes['pg/text@1']['output'] | null;
     activities: public_Activity[];
     audit_logs: public_AuditLog[];
@@ -5395,6 +5680,9 @@ export declare const models: {
     Lead: Models.public_Lead;
     Manufacturer: Models.public_Manufacturer;
     MemberRole: Models.public_MemberRole;
+    MigrationBatchBaseline: Models.public_MigrationBatchBaseline;
+    MigrationManifestItem: Models.public_MigrationManifestItem;
+    MigrationWatermark: Models.public_MigrationWatermark;
     Opportunity: Models.public_Opportunity;
     Permission: Models.public_Permission;
     ProductCategory: Models.public_ProductCategory;
@@ -5406,6 +5694,7 @@ export declare const models: {
     QuotationApprovalSettings: Models.public_QuotationApprovalSettings;
     QuotationLine: Models.public_QuotationLine;
     QuotationRevision: Models.public_QuotationRevision;
+    ReconciliationAnomaly: Models.public_ReconciliationAnomaly;
     Requirement: Models.public_Requirement;
     Role: Models.public_Role;
     RolePermission: Models.public_RolePermission;
@@ -9376,6 +9665,289 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly MigrationBatchBaseline: {
+              columns: {
+                readonly attempt_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly batch_cursor: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly captured_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly migration_key: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly pre_administrative: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly pre_billing: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly pre_lifecycle_status: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly pre_policy: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly pre_security: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly pre_version: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly tenant_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+              };
+              primaryKey: {
+                readonly columns: readonly [
+                  'migration_key',
+                  'attempt_id',
+                  'batch_cursor',
+                  'tenant_id',
+                ];
+              };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'MigrationBatchBaseline_migration_key_attempt_id_batch_curso_idx';
+                  readonly columns: readonly ['migration_key', 'attempt_id', 'batch_cursor'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'MigrationBatchBaseline';
+                    readonly columns: readonly ['migration_key', 'attempt_id'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'MigrationWatermark';
+                    readonly columns: readonly ['migration_key', 'attempt_id'];
+                  };
+                },
+              ];
+            };
+            readonly MigrationManifestItem: {
+              columns: {
+                readonly attempt_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly migration_key: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly processed_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: true;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly status: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'PENDING'>;
+                  };
+                  readonly many: false;
+                };
+                readonly tenant_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+              };
+              primaryKey: {
+                readonly columns: readonly ['migration_key', 'attempt_id', 'tenant_id'];
+              };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'MigrationManifestItem_migration_key_attempt_id_status_idx';
+                  readonly columns: readonly ['migration_key', 'attempt_id', 'status'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'MigrationManifestItem';
+                    readonly columns: readonly ['migration_key', 'attempt_id'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'MigrationWatermark';
+                    readonly columns: readonly ['migration_key', 'attempt_id'];
+                  };
+                },
+              ];
+            };
+            readonly MigrationWatermark: {
+              columns: {
+                readonly attempt_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly batch_state: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'IDLE'>;
+                  };
+                  readonly many: false;
+                };
+                readonly checksum: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly completed_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: true;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly error_details: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly in_flight_batch_end: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly in_flight_batch_start: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly last_processed_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly manifest_digest: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly migration_key: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly processed_records: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
+                  };
+                  readonly many: false;
+                };
+                readonly started_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly status: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'PENDING'>;
+                  };
+                  readonly many: false;
+                };
+                readonly total_records: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 0>;
+                  };
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['migration_key', 'attempt_id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'MigrationWatermark_migration_key_status_idx';
+                  readonly columns: readonly ['migration_key', 'status'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [];
+            };
             readonly Opportunity: {
               columns: {
                 readonly closed_at: {
@@ -11081,6 +11653,106 @@ type ContractBase = Omit<
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'Currency';
                     readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
+            readonly ReconciliationAnomaly: {
+              columns: {
+                readonly anomaly_type: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly attempt_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly detected_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly migration_key: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+                readonly raw_payload: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly resolution_note: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly resolved: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                  readonly many: false;
+                };
+                readonly resolved_at: {
+                  readonly dataType: 'pg/timestamp';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly nullable: true;
+                  readonly typeParams: { readonly precision: 3 };
+                  readonly many: false;
+                };
+                readonly resolved_by: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly tenant_id: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly many: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'ReconciliationAnomaly_migration_key_attempt_id_resolved_idx';
+                  readonly columns: readonly ['migration_key', 'attempt_id', 'resolved'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'ReconciliationAnomaly';
+                    readonly columns: readonly ['migration_key', 'attempt_id'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'MigrationWatermark';
+                    readonly columns: readonly ['migration_key', 'attempt_id'];
                   };
                 },
               ];
@@ -12902,10 +13574,60 @@ type ContractBase = Omit<
                   readonly nullable: false;
                   readonly many: false;
                 };
+                readonly is_administrative_restricted: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                  readonly many: false;
+                };
+                readonly is_billing_restricted: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                  readonly many: false;
+                };
+                readonly is_policy_restricted: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                  readonly many: false;
+                };
+                readonly is_security_restricted: {
+                  readonly dataType: 'pg/bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                  readonly many: false;
+                };
                 readonly legal_name: {
                   readonly dataType: 'pg/text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: true;
+                  readonly many: false;
+                };
+                readonly lifecycle_status: {
+                  readonly dataType: 'pg/text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'ACTIVE'>;
+                  };
                   readonly many: false;
                 };
                 readonly name: {
@@ -12961,6 +13683,16 @@ type ContractBase = Omit<
                   readonly typeParams: { readonly precision: 3 };
                   readonly many: false;
                 };
+                readonly version: {
+                  readonly dataType: 'pg/int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/int4@1', 1>;
+                  };
+                  readonly many: false;
+                };
                 readonly website: {
                   readonly dataType: 'pg/text';
                   readonly codecId: 'pg/text@1';
@@ -12970,7 +13702,23 @@ type ContractBase = Omit<
               };
               primaryKey: { readonly columns: readonly ['id'] };
               uniques: readonly [];
-              indexes: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'Tenant_is_billing_restricted_idx';
+                  readonly columns: readonly ['is_billing_restricted'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'Tenant_is_security_restricted_idx';
+                  readonly columns: readonly ['is_security_restricted'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'Tenant_lifecycle_status_idx';
+                  readonly columns: readonly ['lifecycle_status'];
+                  readonly unique: false;
+                },
+              ];
               foreignKeys: readonly [];
             };
             readonly TenantMember: {
@@ -13613,6 +14361,18 @@ type ContractBase = Omit<
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'MemberRole';
     };
+    readonly MigrationBatchBaseline: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'MigrationBatchBaseline';
+    };
+    readonly MigrationManifestItem: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'MigrationManifestItem';
+    };
+    readonly MigrationWatermark: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'MigrationWatermark';
+    };
     readonly Opportunity: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'Opportunity';
@@ -13653,6 +14413,10 @@ type ContractBase = Omit<
     readonly QuotationRevision: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'QuotationRevision';
+    };
+    readonly ReconciliationAnomaly: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'ReconciliationAnomaly';
     };
     readonly Requirement: {
       readonly namespace: 'public' & NamespaceId;
@@ -17627,6 +18391,265 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly MigrationBatchBaseline: {
+            readonly fields: {
+              readonly attempt_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly batch_cursor: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly captured_at: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly migration_key: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly pre_administrative: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly pre_billing: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly pre_lifecycle_status: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly pre_policy: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly pre_security: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly pre_version: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly tenant_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+            };
+            readonly relations: {
+              readonly watermark: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'MigrationWatermark';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['migration_key', 'attempt_id'];
+                  readonly targetFields: readonly ['migration_key', 'attempt_id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'MigrationBatchBaseline';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly attempt_id: { readonly column: 'attempt_id' };
+                readonly batch_cursor: { readonly column: 'batch_cursor' };
+                readonly captured_at: { readonly column: 'captured_at' };
+                readonly migration_key: { readonly column: 'migration_key' };
+                readonly pre_administrative: { readonly column: 'pre_administrative' };
+                readonly pre_billing: { readonly column: 'pre_billing' };
+                readonly pre_lifecycle_status: { readonly column: 'pre_lifecycle_status' };
+                readonly pre_policy: { readonly column: 'pre_policy' };
+                readonly pre_security: { readonly column: 'pre_security' };
+                readonly pre_version: { readonly column: 'pre_version' };
+                readonly tenant_id: { readonly column: 'tenant_id' };
+              };
+            };
+          };
+          readonly MigrationManifestItem: {
+            readonly fields: {
+              readonly attempt_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly migration_key: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly processed_at: {
+                readonly nullable: true;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly status: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly tenant_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+            };
+            readonly relations: {
+              readonly watermark: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'MigrationWatermark';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['migration_key', 'attempt_id'];
+                  readonly targetFields: readonly ['migration_key', 'attempt_id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'MigrationManifestItem';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly attempt_id: { readonly column: 'attempt_id' };
+                readonly migration_key: { readonly column: 'migration_key' };
+                readonly processed_at: { readonly column: 'processed_at' };
+                readonly status: { readonly column: 'status' };
+                readonly tenant_id: { readonly column: 'tenant_id' };
+              };
+            };
+          };
+          readonly MigrationWatermark: {
+            readonly fields: {
+              readonly attempt_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly batch_state: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly checksum: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly completed_at: {
+                readonly nullable: true;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly error_details: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly in_flight_batch_end: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly in_flight_batch_start: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly last_processed_id: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly manifest_digest: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly migration_key: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly processed_records: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly started_at: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly status: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly total_records: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+            };
+            readonly relations: {
+              readonly anomalies: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'ReconciliationAnomaly';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['migration_key', 'attempt_id'];
+                  readonly targetFields: readonly ['migration_key', 'attempt_id'];
+                };
+              };
+              readonly batch_baselines: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'MigrationBatchBaseline';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['migration_key', 'attempt_id'];
+                  readonly targetFields: readonly ['migration_key', 'attempt_id'];
+                };
+              };
+              readonly manifest_items: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'MigrationManifestItem';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['migration_key', 'attempt_id'];
+                  readonly targetFields: readonly ['migration_key', 'attempt_id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'MigrationWatermark';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly attempt_id: { readonly column: 'attempt_id' };
+                readonly batch_state: { readonly column: 'batch_state' };
+                readonly checksum: { readonly column: 'checksum' };
+                readonly completed_at: { readonly column: 'completed_at' };
+                readonly error_details: { readonly column: 'error_details' };
+                readonly in_flight_batch_end: { readonly column: 'in_flight_batch_end' };
+                readonly in_flight_batch_start: { readonly column: 'in_flight_batch_start' };
+                readonly last_processed_id: { readonly column: 'last_processed_id' };
+                readonly manifest_digest: { readonly column: 'manifest_digest' };
+                readonly migration_key: { readonly column: 'migration_key' };
+                readonly processed_records: { readonly column: 'processed_records' };
+                readonly started_at: { readonly column: 'started_at' };
+                readonly status: { readonly column: 'status' };
+                readonly total_records: { readonly column: 'total_records' };
+              };
+            };
+          };
           readonly Opportunity: {
             readonly fields: {
               readonly closed_at: {
@@ -19358,6 +20381,93 @@ type ContractBase = Omit<
                 readonly total_tax: { readonly column: 'total_tax' };
                 readonly valid_until: { readonly column: 'valid_until' };
                 readonly warranty_terms: { readonly column: 'warranty_terms' };
+              };
+            };
+          };
+          readonly ReconciliationAnomaly: {
+            readonly fields: {
+              readonly anomaly_type: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly attempt_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly detected_at: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly migration_key: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly raw_payload: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly resolution_note: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly resolved: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly resolved_at: {
+                readonly nullable: true;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamp-string@1';
+                  readonly typeParams: { readonly precision: 3 };
+                };
+              };
+              readonly resolved_by: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly tenant_id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+            };
+            readonly relations: {
+              readonly watermark: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'MigrationWatermark';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['migration_key', 'attempt_id'];
+                  readonly targetFields: readonly ['migration_key', 'attempt_id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'ReconciliationAnomaly';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly anomaly_type: { readonly column: 'anomaly_type' };
+                readonly attempt_id: { readonly column: 'attempt_id' };
+                readonly detected_at: { readonly column: 'detected_at' };
+                readonly id: { readonly column: 'id' };
+                readonly migration_key: { readonly column: 'migration_key' };
+                readonly raw_payload: { readonly column: 'raw_payload' };
+                readonly resolution_note: { readonly column: 'resolution_note' };
+                readonly resolved: { readonly column: 'resolved' };
+                readonly resolved_at: { readonly column: 'resolved_at' };
+                readonly resolved_by: { readonly column: 'resolved_by' };
+                readonly tenant_id: { readonly column: 'tenant_id' };
               };
             };
           };
@@ -21140,8 +22250,28 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly is_administrative_restricted: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly is_billing_restricted: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly is_policy_restricted: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly is_security_restricted: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
               readonly legal_name: {
                 readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly lifecycle_status: {
+                readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
               readonly name: {
@@ -21179,6 +22309,10 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/timestamp-string@1';
                   readonly typeParams: { readonly precision: 3 };
                 };
+              };
+              readonly version: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly website: {
                 readonly nullable: true;
@@ -21534,7 +22668,14 @@ type ContractBase = Omit<
                 readonly email: { readonly column: 'email' };
                 readonly gstin: { readonly column: 'gstin' };
                 readonly id: { readonly column: 'id' };
+                readonly is_administrative_restricted: {
+                  readonly column: 'is_administrative_restricted';
+                };
+                readonly is_billing_restricted: { readonly column: 'is_billing_restricted' };
+                readonly is_policy_restricted: { readonly column: 'is_policy_restricted' };
+                readonly is_security_restricted: { readonly column: 'is_security_restricted' };
                 readonly legal_name: { readonly column: 'legal_name' };
+                readonly lifecycle_status: { readonly column: 'lifecycle_status' };
                 readonly name: { readonly column: 'name' };
                 readonly pan: { readonly column: 'pan' };
                 readonly phone: { readonly column: 'phone' };
@@ -21543,6 +22684,7 @@ type ContractBase = Omit<
                 readonly state: { readonly column: 'state' };
                 readonly timezone: { readonly column: 'timezone' };
                 readonly updated_at: { readonly column: 'updated_at' };
+                readonly version: { readonly column: 'version' };
                 readonly website: { readonly column: 'website' };
               };
             };
@@ -22651,6 +23793,14 @@ type ContractBase = Omit<
           readonly onCreate: { readonly id: 'uuidv4'; readonly kind: 'generator' };
           readonly ref: {
             readonly entry: 'QuotationRevision';
+            readonly field: 'id';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'uuidv4'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'ReconciliationAnomaly';
             readonly field: 'id';
             readonly namespace: 'public';
           };

@@ -29,6 +29,14 @@ model Tenant {
   created_at          DateTime           @default(now())
   updated_at          DateTime           @updatedAt
 
+  // --- CANONICAL INCREMENT 2 FIELDS (FROZEN v2.5 / APPR-01) ---
+  version                      Int                @default(1)
+  lifecycle_status             String             @default("ACTIVE") // 'PROVISIONING'|'ACTIVE'|'SUSPENDED'|'ARCHIVED'
+  is_security_restricted       Boolean            @default(false)
+  is_policy_restricted         Boolean            @default(false)
+  is_billing_restricted        Boolean            @default(false)
+  is_administrative_restricted  Boolean            @default(false)
+
   members             TenantMember[]
   customers           Customer[]
   customer_contacts   CustomerContact[]
@@ -60,6 +68,10 @@ model Tenant {
   roles               Role[]
   role_permissions    RolePermission[]
   member_roles        MemberRole[]
+
+  @@index([lifecycle_status])
+  @@index([is_security_restricted])
+  @@index([is_billing_restricted])
 }
 
 model User {
@@ -1481,4 +1493,80 @@ model SalesEnquiry {
 
   @@index([email])
   @@index([created_at])
+}
+
+// --- CANONICAL INCREMENT 2 MIGRATION & RECONCILIATION MODELS (FROZEN v2.5 / APPR-01) ---
+
+model MigrationWatermark {
+  migration_key          String
+  attempt_id             String
+  status                 String                  @default("PENDING") // 'PENDING'|'IN_PROGRESS'|'COMPLETED'|'FAILED'|'UNCERTAIN_CRASH'|'ANOMALY_HALTED'
+  batch_state            String                  @default("IDLE")    // 'IDLE'|'IN_FLIGHT'|'COMMITTED'|'ANOMALY_HALTED'
+  in_flight_batch_start  String?                                     // Lower cursor bound for recovery
+  in_flight_batch_end    String?                                     // Upper cursor bound for recovery
+  last_processed_id      String?                                     // Checkpointed cursor
+  manifest_digest        String?                                     // RFC 8785 JCS SHA-256 seal of manifest
+  total_records          Int                     @default(0)         // Captured manifest size
+  processed_records      Int                     @default(0)         // Verified processed count
+  checksum               String?                                     // RFC 8785 canonical dataset checksum
+  started_at             DateTime                @default(now())
+  completed_at           DateTime?
+  error_details          String?
+
+  manifest_items         MigrationManifestItem[]
+  batch_baselines        MigrationBatchBaseline[]
+  anomalies              ReconciliationAnomaly[]
+
+  @@id([migration_key, attempt_id])
+  @@index([migration_key, status])
+}
+
+model MigrationManifestItem {
+  migration_key          String
+  attempt_id             String
+  tenant_id              String
+  status                 String                  @default("PENDING") // 'PENDING'|'PROCESSED'|'ANOMALY'
+  processed_at           DateTime?
+
+  watermark              MigrationWatermark      @relation(fields: [migration_key, attempt_id], references: [migration_key, attempt_id], onDelete: Restrict)
+
+  @@id([migration_key, attempt_id, tenant_id])
+  @@index([migration_key, attempt_id, status])
+}
+
+model MigrationBatchBaseline {
+  migration_key          String
+  attempt_id             String
+  batch_cursor           String                  // Cursor identifier (e.g. in_flight_batch_start)
+  tenant_id              String
+  pre_version            Int
+  pre_lifecycle_status   String
+  pre_security           Boolean
+  pre_policy             Boolean
+  pre_billing            Boolean
+  pre_administrative     Boolean
+  captured_at            DateTime                @default(now())
+
+  watermark              MigrationWatermark      @relation(fields: [migration_key, attempt_id], references: [migration_key, attempt_id], onDelete: Restrict)
+
+  @@id([migration_key, attempt_id, batch_cursor, tenant_id])
+  @@index([migration_key, attempt_id, batch_cursor])
+}
+
+model ReconciliationAnomaly {
+  id                     String                  @id @default(uuid())
+  migration_key          String
+  attempt_id             String
+  tenant_id              String
+  anomaly_type           String                  // 'CORRUPT_JSON'|'CONCURRENT_CONFLICT'|'EMPTY_MANIFEST_ANOMALY'|'UNCERTAIN_COMMIT_OUTCOME'|'BASELINE_MISMATCH'|'CONCURRENT_STATE_DIVERGENCE'|'POST_SNAPSHOT_STATE_DIVERGENCE'|'BROKEN_TRANSITION_CHAIN'|'UNPROVEN_VERSION_GAP'|'HISTORICAL_STATE_UNPROVEN'
+  raw_payload            String?
+  detected_at            DateTime                @default(now())
+  resolved               Boolean                 @default(false)
+  resolved_at            DateTime?
+  resolved_by            String?
+  resolution_note        String?
+
+  watermark              MigrationWatermark      @relation(fields: [migration_key, attempt_id], references: [migration_key, attempt_id], onDelete: Restrict)
+
+  @@index([migration_key, attempt_id, resolved])
 }

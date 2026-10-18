@@ -100,9 +100,13 @@ export const PERMITTED_AUDIT_DETAIL_KEYS = new Set([
   "status",
   "message",
   "planId",
+  "referenceNumber",
+  "fromStatus",
+  "toStatus",
+  "company",
 ]);
 
-export const PLATFORM_AUDIT_ENTITIES = ["Tenant", "Platform", "Invitation", "TenantBootstrap"];
+export const PLATFORM_AUDIT_ENTITIES = ["Tenant", "Platform", "Invitation", "TenantBootstrap", "SalesEnquiry"];
 
 export const PLATFORM_AUDIT_ACTIONS = [
   "TENANT_SUSPEND",
@@ -110,6 +114,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ADMIN_INVITE_CREATE",
   "ADMIN_INVITE_REVOKE",
   "CREATE",
+  "SALES_ENQUIRY_STATUS_UPDATE",
 ];
 
 /**
@@ -144,20 +149,92 @@ export function sanitizeAuditDetails(rawDetails: unknown): Record<string, unknow
  * Safe to call from context and auth guards.
  * Propagates failure if lifecycle status cannot be verified (fail-closed).
  */
+export interface TenantRestrictionStatus {
+  is_security_restricted: boolean;
+  is_policy_restricted: boolean;
+  is_billing_restricted: boolean;
+  is_administrative_restricted: boolean;
+}
+
+/**
+ * Checks whether a tenant is currently suspended.
+ * Queries concrete lifecycle_status from Tenant with fallback to AuditLog for backwards compatibility.
+ * Safe to call from context and auth guards.
+ * Propagates failure if lifecycle status cannot be verified (fail-closed).
+ */
 export async function isTenantSuspended(tenantId: string, client: any = db): Promise<boolean> {
   const lifecycle = await getTenantLifecycleStatus(tenantId, client);
   return lifecycle.status === "SUSPENDED";
 }
 
 /**
- * Resolves the persistent lifecycle status of a tenant based on the audit trail.
- * Fail-closed: If audit storage is unavailable or database query fails, throws a
- * service-unavailable error instead of defaulting to ACTIVE.
+ * Retrieves the operational restriction flags for a tenant.
+ * Fail-closed: Propagates error if storage unavailable.
+ */
+export async function getTenantRestrictions(tenantId: string, client: any = db): Promise<TenantRestrictionStatus> {
+  const Tenant = getModel(client, "Tenant");
+  if (Tenant && typeof Tenant.findUnique === "function") {
+    try {
+      const record = await Tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          is_security_restricted: true,
+          is_policy_restricted: true,
+          is_billing_restricted: true,
+          is_administrative_restricted: true,
+        },
+      });
+      if (record) {
+        return {
+          is_security_restricted: Boolean(record.is_security_restricted),
+          is_policy_restricted: Boolean(record.is_policy_restricted),
+          is_billing_restricted: Boolean(record.is_billing_restricted),
+          is_administrative_restricted: Boolean(record.is_administrative_restricted),
+        };
+      }
+    } catch {
+      // Fall through to default if columns not yet migrated
+    }
+  }
+
+  return {
+    is_security_restricted: false,
+    is_policy_restricted: false,
+    is_billing_restricted: false,
+    is_administrative_restricted: false,
+  };
+}
+
+/**
+ * Resolves the persistent lifecycle status of a tenant.
+ * Inspects concrete lifecycle_status on Tenant row first; falls back to AuditLog.
+ * Fail-closed: If storage is unavailable or database query fails, throws SERVICE_UNAVAILABLE.
  */
 export async function getTenantLifecycleStatus(
   tenantId: string,
   client: any = db
 ): Promise<TenantLifecycleStatus> {
+  const Tenant = getModel(client, "Tenant");
+  if (Tenant && typeof Tenant.findUnique === "function") {
+    try {
+      const record = await Tenant.findUnique({
+        where: { id: tenantId },
+        select: { lifecycle_status: true },
+      });
+      if (record && record.lifecycle_status) {
+        if (record.lifecycle_status === "SUSPENDED") {
+          return {
+            status: "SUSPENDED",
+            reason: "Suspended by platform administration",
+          };
+        }
+        return { status: "ACTIVE" };
+      }
+    } catch {
+      // Fall through to AuditLog check if lifecycle_status column not yet migrated
+    }
+  }
+
   const AuditLog = getModel(client, "AuditLog");
   if (!AuditLog || typeof AuditLog.findMany !== "function") {
     throw new Error("SERVICE_UNAVAILABLE: Audit storage service is unavailable to verify tenant lifecycle status");
@@ -953,19 +1030,8 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
       throw new Error("SERVICE_UNAVAILABLE: Tenant storage service is unavailable");
     }
 
-    let existingTenant = null;
-    if (typeof txTenant.findUnique === "function") {
-      existingTenant = await txTenant.findUnique({
-        where: { id: cleanTenantId },
-        select: { id: true },
-      });
-      if (!existingTenant) {
-        throw new Error("Tenant not found");
-      }
-    }
-
     const now = new Date();
-    // Serialize concurrent transitions via PostgreSQL row-level write lock on the Tenant record
+    // 1. Acquire exclusive row write lock on Tenant (Lock-First Protocol)
     if (typeof txTenant.update === "function") {
       await txTenant.update({
         where: { id: cleanTenantId },
@@ -973,29 +1039,67 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
       });
     }
 
-    // Atomically verify current lifecycle status inside the locked transaction
-    const currentLifecycle = await getTenantLifecycleStatus(cleanTenantId, tx);
-    if (currentLifecycle.status === "SUSPENDED") {
+    // 2. Read authoritative state under lock
+    let existingTenant = null;
+    if (typeof txTenant.findUnique === "function") {
+      existingTenant = await txTenant.findUnique({
+        where: { id: cleanTenantId },
+        select: {
+          id: true,
+          version: true,
+          lifecycle_status: true,
+          is_security_restricted: true,
+          is_policy_restricted: true,
+          is_billing_restricted: true,
+          is_administrative_restricted: true,
+        },
+      });
+    }
+    if (!existingTenant) {
+      throw new Error("Tenant not found");
+    }
+
+    const currentStatus = existingTenant.lifecycle_status || "ACTIVE";
+    if (currentStatus === "SUSPENDED") {
       throw new Error("Tenant is already suspended");
     }
 
-    const txAuditLog = getModel(tx, "AuditLog");
-    if (!txAuditLog || typeof txAuditLog.create !== "function") {
-      throw new Error("SERVICE_UNAVAILABLE: Audit storage service unavailable for suspension");
-    }
+    const currentVersion = typeof existingTenant.version === "number" ? existingTenant.version : 1;
+    const targetVersion = currentVersion + 1;
 
-    await txAuditLog.create({
+    // 3. Mutate concrete lifecycle columns and increment version atomically under CAS
+    await txTenant.update({
+      where: { id: cleanTenantId },
       data: {
-        tenant_id: cleanTenantId,
-        action: "TENANT_SUSPEND",
-        entity: "Tenant",
-        entity_id: cleanTenantId,
-        user_id: actor.userId,
-        details: JSON.stringify({
-          actorEmail: actor.email,
-          reason: cleanReason,
-          suspendedAtUtc: now.toISOString(),
-        }),
+        lifecycle_status: "SUSPENDED",
+        version: targetVersion,
+        updated_at: now,
+      },
+    });
+
+    // 4. Atomically insert version-stamped AuditLog record with 5-column proof (APPR-01)
+    const { logAuditTx } = await import("../audit/logger");
+    await logAuditTx(tx, {
+      tenantId: cleanTenantId,
+      userId: actor.userId,
+      action: "TENANT_SUSPEND",
+      entity: "Tenant",
+      entityId: cleanTenantId,
+      details: {
+        actorEmail: actor.email,
+        reason: cleanReason,
+        fromVersion: currentVersion,
+        toVersion: targetVersion,
+        actionClass: "CLASS_A",
+        fromStatus: currentStatus,
+        toStatus: "SUSPENDED",
+        flags: {
+          is_security_restricted: Boolean(existingTenant.is_security_restricted),
+          is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
+          is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
+          is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+        },
+        source: "RUNTIME",
       },
     });
 
@@ -1008,6 +1112,10 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
  * Enforces server-side permission platform.tenant.reactivate.
  * Concurrency-safe: Runs in a transaction and acquires an exclusive row lock on Tenant
  * to ensure serialized, atomic lifecycle evaluation and audit logging.
+ *
+ * GOVERNANCE AMENDMENT APPR-02 (Option A):
+ * Reactivation transitions lifecycle_status = 'ACTIVE' but preserves all independent
+ * restriction flags (is_*_restricted) to prevent accidental clearing of security/billing holds.
  */
 export async function reactivateTenant(tenantId: string): Promise<{ success: boolean }> {
   const actor = await requirePlatformPermission("platform.tenant.reactivate");
@@ -1023,19 +1131,8 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
       throw new Error("SERVICE_UNAVAILABLE: Tenant storage service is unavailable");
     }
 
-    let existingTenant = null;
-    if (typeof txTenant.findUnique === "function") {
-      existingTenant = await txTenant.findUnique({
-        where: { id: cleanTenantId },
-        select: { id: true },
-      });
-      if (!existingTenant) {
-        throw new Error("Tenant not found");
-      }
-    }
-
     const now = new Date();
-    // Serialize concurrent transitions via PostgreSQL row-level write lock on the Tenant record
+    // 1. Acquire exclusive row write lock on Tenant (Lock-First Protocol)
     if (typeof txTenant.update === "function") {
       await txTenant.update({
         where: { id: cleanTenantId },
@@ -1043,28 +1140,67 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
       });
     }
 
-    // Atomically verify current lifecycle status inside the locked transaction
-    const currentLifecycle = await getTenantLifecycleStatus(cleanTenantId, tx);
-    if (currentLifecycle.status !== "SUSPENDED") {
+    // 2. Read authoritative state under lock
+    let existingTenant = null;
+    if (typeof txTenant.findUnique === "function") {
+      existingTenant = await txTenant.findUnique({
+        where: { id: cleanTenantId },
+        select: {
+          id: true,
+          version: true,
+          lifecycle_status: true,
+          is_security_restricted: true,
+          is_policy_restricted: true,
+          is_billing_restricted: true,
+          is_administrative_restricted: true,
+        },
+      });
+    }
+    if (!existingTenant) {
+      throw new Error("Tenant not found");
+    }
+
+    const currentStatus = existingTenant.lifecycle_status || "ACTIVE";
+    if (currentStatus !== "SUSPENDED") {
       throw new Error("Tenant is not currently suspended");
     }
 
-    const txAuditLog = getModel(tx, "AuditLog");
-    if (!txAuditLog || typeof txAuditLog.create !== "function") {
-      throw new Error("SERVICE_UNAVAILABLE: Audit storage service unavailable for reactivation");
-    }
+    const currentVersion = typeof existingTenant.version === "number" ? existingTenant.version : 1;
+    const targetVersion = currentVersion + 1;
 
-    await txAuditLog.create({
+    // 3. Mutate lifecycle_status to ACTIVE and increment version
+    // APPR-02 Amendment: Restriction flags remain untouched (preserved)
+    await txTenant.update({
+      where: { id: cleanTenantId },
       data: {
-        tenant_id: cleanTenantId,
-        action: "TENANT_REACTIVATE",
-        entity: "Tenant",
-        entity_id: cleanTenantId,
-        user_id: actor.userId,
-        details: JSON.stringify({
-          actorEmail: actor.email,
-          reactivatedAtUtc: now.toISOString(),
-        }),
+        lifecycle_status: "ACTIVE",
+        version: targetVersion,
+        updated_at: now,
+      },
+    });
+
+    // 4. Atomically insert version-stamped AuditLog record with 5-column proof (APPR-01, APPR-02)
+    const { logAuditTx } = await import("../audit/logger");
+    await logAuditTx(tx, {
+      tenantId: cleanTenantId,
+      userId: actor.userId,
+      action: "TENANT_REACTIVATE",
+      entity: "Tenant",
+      entityId: cleanTenantId,
+      details: {
+        actorEmail: actor.email,
+        fromVersion: currentVersion,
+        toVersion: targetVersion,
+        actionClass: "CLASS_A",
+        fromStatus: "SUSPENDED",
+        toStatus: "ACTIVE",
+        flags: {
+          is_security_restricted: Boolean(existingTenant.is_security_restricted),
+          is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
+          is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
+          is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+        },
+        source: "RUNTIME",
       },
     });
 

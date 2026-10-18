@@ -23,6 +23,9 @@ const eslintConfig = defineConfig([
     ".cursor/**",
     ".devin/**",
 
+    // Standalone migration and staging verification scripts
+    "scripts/**",
+
     // Root-level temporary debugging artifacts
     "fix*.js",
     "test-*.js",

@@ -43,6 +43,18 @@ vi.mock('../src/prisma/db', () => ({
     },
     TenantMember: { create: mockTenantMemberCreate, findUnique: mockTenantMemberFindUnique },
     tenantMember: { create: mockTenantMemberCreate, findUnique: mockTenantMemberFindUnique },
+    $transaction: async (cb: any) => cb({
+      Tenant: mockTenantModel,
+      tenant: mockTenantModel,
+      AuditLog: mockAuditLogModel,
+      auditLog: mockAuditLogModel,
+    }),
+    transaction: async (cb: any) => cb({
+      Tenant: mockTenantModel,
+      tenant: mockTenantModel,
+      AuditLog: mockAuditLogModel,
+      auditLog: mockAuditLogModel,
+    }),
   },
 }));
 
@@ -68,6 +80,15 @@ describe('Tenant Administration', () => {
 
   it('TEST A & B: Tenant administrator can read and update their organization.', async () => {
     (getTenantContext as any).mockResolvedValue({ tenantId: 'tenant-A', userId: 'user-1', role: 'ADMIN' });
+    mockTenantModel.findUnique.mockResolvedValue({
+      id: 'tenant-A',
+      version: 1,
+      lifecycle_status: 'ACTIVE',
+      is_security_restricted: false,
+      is_policy_restricted: false,
+      is_billing_restricted: false,
+      is_administrative_restricted: false,
+    });
     mockTenantModel.update.mockResolvedValue({});
 
     const formData = new FormData();
@@ -105,6 +126,16 @@ describe('Tenant Administration', () => {
 
   it('TEST J: Important administration operations generate audit records.', async () => {
     (getTenantContext as any).mockResolvedValue({ tenantId: 'tenant-A', userId: 'user-1', role: 'ADMIN' });
+    mockTenantModel.findUnique.mockResolvedValue({
+      id: 'tenant-A',
+      version: 1,
+      lifecycle_status: 'ACTIVE',
+      is_security_restricted: false,
+      is_policy_restricted: false,
+      is_billing_restricted: false,
+      is_administrative_restricted: false,
+    });
+    mockTenantModel.update.mockResolvedValue({});
 
     const formData = new FormData();
     formData.append('name', 'Audit Me');
@@ -112,10 +143,10 @@ describe('Tenant Administration', () => {
     await updateOrganization(formData);
 
     expect(mockAuditLogModel.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        action: 'UPDATE',
-        entity: 'Organization'
-      })
+      action: 'TENANT_UPDATE',
+      entity: 'Tenant',
+      tenant_id: 'tenant-A',
+      user_id: 'user-1'
     }));
   });
 
