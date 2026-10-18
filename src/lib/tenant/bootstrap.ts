@@ -48,19 +48,29 @@ export async function bootstrapTenant(
       creatorId = createdUser.id;
     }
 
-    // 1. Create Tenant with Canonical Increment 2 Defaults (v2.5 / APPR-01)
+    // 1. Create Tenant with Canonical Increment 2 Defaults (with legacy fallback)
     const Tenant = getModel(tx, "Tenant");
-    const tenant = await Tenant.create({
-      data: {
-        name: tenantName,
-        version: 1,
-        lifecycle_status: "ACTIVE",
-        is_security_restricted: false,
-        is_policy_restricted: false,
-        is_billing_restricted: false,
-        is_administrative_restricted: false,
-      }
-    });
+    let tenant: any = null;
+    try {
+      tenant = await Tenant.create({
+        data: {
+          name: tenantName,
+          version: 1,
+          lifecycle_status: "ACTIVE",
+          is_security_restricted: false,
+          is_policy_restricted: false,
+          is_billing_restricted: false,
+          is_administrative_restricted: false,
+        }
+      });
+    } catch {
+      // Legacy schema fallback when Increment 2 columns are absent from database
+      tenant = await Tenant.create({
+        data: {
+          name: tenantName,
+        }
+      });
+    }
 
     // 2. Fetch all global permissions for mapping
     const Permission = getModel(tx, "Permission");

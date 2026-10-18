@@ -15,10 +15,20 @@ export const instant = false;
 
 export default async function WelcomePage() {
   const context = await requireTenantContext();
-  const Tenant = getModel(db, "Tenant");
-  const tenant = Tenant
-    ? await Tenant.findUnique({ where: { id: context.tenantId } })
-    : null;
+  let tenant = null;
+  try {
+    const Tenant = getModel(db, "Tenant");
+    tenant = Tenant
+      ? await Tenant.findUnique({
+          where: { id: context.tenantId },
+          select: { id: true, name: true, created_at: true },
+        })
+      : null;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[WelcomePage] Could not load tenant record:", msg);
+    tenant = null;
+  }
 
   const organizationName = tenant?.name || "Your Organisation";
   const planName = "7 Day Trial";

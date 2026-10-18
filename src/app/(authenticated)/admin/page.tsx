@@ -14,12 +14,28 @@ export default async function AdminOrganizationPage() {
   // Actually, wait, getTenantContext() only resolves the tenant ID, and RBAC is done in actions.
   // We can let the user view this page if they have organization.view, but they can't save unless they have organization.update.
 
-  const Tenant = getModel(db, "Tenant");
-  const tenant = Tenant
-    ? await Tenant.findUnique({
-        where: { id: context.tenantId }
-      })
-    : null;
+  let tenant = null;
+  try {
+    const Tenant = getModel(db, "Tenant");
+    tenant = Tenant
+      ? await Tenant.findUnique({
+          where: { id: context.tenantId },
+          select: {
+            id: true,
+            name: true,
+            legal_name: true,
+            email: true,
+            phone: true,
+            website: true,
+            timezone: true,
+          },
+        })
+      : null;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[AdminOrganizationPage] Failed to fetch tenant details:", msg);
+    tenant = null;
+  }
 
   if (!tenant) return <div>Tenant not found</div>;
 

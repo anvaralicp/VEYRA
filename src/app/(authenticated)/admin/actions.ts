@@ -18,6 +18,18 @@ export async function updateOrganization(formData: FormData) {
   const { runTransaction } = await import("../../../lib/db/legacy-adapter");
   const { logAuditTx } = await import("../../../lib/audit/logger");
 
+  const { isTenantSuspended, getTenantRestrictions } = await import("../../../lib/platform/tenant-service");
+  if (await isTenantSuspended(context.tenantId)) {
+    throw new Error("FORBIDDEN: Tenant account is suspended. Organization updates are prohibited.");
+  }
+  const restrictions = await getTenantRestrictions(context.tenantId);
+  if (restrictions.is_administrative_restricted) {
+    throw new Error("FORBIDDEN: Tenant account is locked under administrative restriction. Organization updates are prohibited.");
+  }
+  if (restrictions.is_security_restricted) {
+    throw new Error("FORBIDDEN: Tenant account is locked under security isolation. Organization updates are prohibited.");
+  }
+
   await runTransaction(db, async (tx: any) => {
     const Tenant = getModel(tx, "Tenant");
     if (!Tenant) throw new Error("Tenant model not available");
@@ -29,46 +41,62 @@ export async function updateOrganization(formData: FormData) {
       data: { updated_at: now },
     });
 
-    // 2. Read authoritative state under lock
-    const currentTenant = await Tenant.findUnique({
-      where: { id: context.tenantId },
-      select: {
-        id: true,
-        version: true,
-        lifecycle_status: true,
-        is_security_restricted: true,
-        is_policy_restricted: true,
-        is_billing_restricted: true,
-        is_administrative_restricted: true,
-      },
-    });
+    // 2. Read authoritative state under lock (with legacy schema fallback)
+    let currentTenant: any = null;
+    let hasIncrement2Columns = true;
+    try {
+      currentTenant = await Tenant.findUnique({
+        where: { id: context.tenantId },
+        select: {
+          id: true,
+          version: true,
+          lifecycle_status: true,
+          is_security_restricted: true,
+          is_policy_restricted: true,
+          is_billing_restricted: true,
+          is_administrative_restricted: true,
+        },
+      });
+    } catch {
+      hasIncrement2Columns = false;
+      currentTenant = await Tenant.findUnique({
+        where: { id: context.tenantId },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+    }
     if (!currentTenant) throw new Error("Tenant not found");
 
-    const currentVersion = typeof currentTenant.version === "number" ? currentTenant.version : 1;
-    const targetVersion = currentVersion + 1;
+    const currentVersion = (hasIncrement2Columns && typeof currentTenant.version === "number") ? currentTenant.version : 1;
+    const targetVersion = hasIncrement2Columns ? currentVersion + 1 : currentVersion;
 
-    // 3. Mutate organization profile fields and increment version atomically (Class B)
-    // Strictly leaves lifecycle and restriction columns untouched
+    // 3. Mutate organization profile fields and increment version if column exists
+    const updateData: any = {
+      name: formData.get("name") as string,
+      legal_name: formData.get("legal_name") as string,
+      registration_number: formData.get("registration_number") as string,
+      gstin: formData.get("gstin") as string,
+      pan: formData.get("pan") as string,
+      website: formData.get("website") as string,
+      email: formData.get("email") as string,
+      phone: formData.get("phone") as string,
+      address: formData.get("address") as string,
+      city: formData.get("city") as string,
+      state: formData.get("state") as string,
+      country: formData.get("country") as string,
+      postal_code: formData.get("postal_code") as string,
+      timezone: (formData.get("timezone") as string) || "UTC",
+      updated_at: now,
+    };
+    if (hasIncrement2Columns) {
+      updateData.version = targetVersion;
+    }
+
     await Tenant.update({
       where: { id: context.tenantId },
-      data: {
-        name: formData.get("name") as string,
-        legal_name: formData.get("legal_name") as string,
-        registration_number: formData.get("registration_number") as string,
-        gstin: formData.get("gstin") as string,
-        pan: formData.get("pan") as string,
-        website: formData.get("website") as string,
-        email: formData.get("email") as string,
-        phone: formData.get("phone") as string,
-        address: formData.get("address") as string,
-        city: formData.get("city") as string,
-        state: formData.get("state") as string,
-        country: formData.get("country") as string,
-        postal_code: formData.get("postal_code") as string,
-        timezone: (formData.get("timezone") as string) || "UTC",
-        version: targetVersion,
-        updated_at: now,
-      },
+      data: updateData,
     });
 
     // 4. Atomically record Class B audit log with fromVersion and toVersion

@@ -27,12 +27,19 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     redirect("/select-tenant");
   }
 
-  const Tenant = getModel(db, "Tenant");
-  const tenant = Tenant
-    ? await Tenant.findUnique({
-        where: { id: context.tenantId },
-      })
-    : null;
+  let tenant = null;
+  try {
+    const Tenant = getModel(db, "Tenant");
+    tenant = Tenant
+      ? await Tenant.findUnique({
+          where: { id: context.tenantId },
+          select: { id: true, name: true, slug: true },
+        })
+      : null;
+  } catch (err: any) {
+    console.warn("[AuthenticatedLayout] Could not load tenant record:", err?.message);
+    tenant = null;
+  }
 
   const User = getModel(db, "User");
   const user = User

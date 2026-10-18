@@ -193,7 +193,42 @@ export async function getTenantRestrictions(tenantId: string, client: any = db):
         };
       }
     } catch {
-      // Fall through to default if columns not yet migrated
+      // Fall through to AuditLog check if columns not yet migrated
+    }
+  }
+
+  // Fallback to AuditLog check for restriction history (legacy schema compatibility)
+  const AuditLog = getModel(client, "AuditLog");
+  if (AuditLog && typeof AuditLog.findMany === "function") {
+    try {
+      const logs = await AuditLog.findMany({
+        where: {
+          tenant_id: tenantId,
+          entity: "Tenant",
+          action: "TENANT_RESTRICT",
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+        take: 1,
+      });
+
+      if (logs && logs.length > 0) {
+        let details: any = logs[0].details;
+        if (typeof details === "string") {
+          try { details = JSON.parse(details); } catch { details = null; }
+        }
+        if (details?.flags) {
+          return {
+            is_security_restricted: Boolean(details.flags.is_security_restricted),
+            is_policy_restricted: Boolean(details.flags.is_policy_restricted),
+            is_billing_restricted: Boolean(details.flags.is_billing_restricted),
+            is_administrative_restricted: Boolean(details.flags.is_administrative_restricted),
+          };
+        }
+      }
+    } catch {
+      throw new Error("SERVICE_UNAVAILABLE: Audit storage service is unavailable to verify tenant restriction status");
     }
   }
 
@@ -1039,43 +1074,84 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
       });
     }
 
-    // 2. Read authoritative state under lock
-    let existingTenant = null;
+    // 2. Read authoritative state under lock (with legacy schema fallback)
+    let existingTenant: any = null;
+    let hasIncrement2Columns = true;
     if (typeof txTenant.findUnique === "function") {
-      existingTenant = await txTenant.findUnique({
-        where: { id: cleanTenantId },
-        select: {
-          id: true,
-          version: true,
-          lifecycle_status: true,
-          is_security_restricted: true,
-          is_policy_restricted: true,
-          is_billing_restricted: true,
-          is_administrative_restricted: true,
-        },
-      });
+      try {
+        existingTenant = await txTenant.findUnique({
+          where: { id: cleanTenantId },
+          select: {
+            id: true,
+            version: true,
+            lifecycle_status: true,
+            is_security_restricted: true,
+            is_policy_restricted: true,
+            is_billing_restricted: true,
+            is_administrative_restricted: true,
+          },
+        });
+      } catch {
+        hasIncrement2Columns = false;
+        existingTenant = await txTenant.findUnique({
+          where: { id: cleanTenantId },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+      }
     }
     if (!existingTenant) {
       throw new Error("Tenant not found");
     }
 
-    const currentStatus = existingTenant.lifecycle_status || "ACTIVE";
+    let currentStatus = "ACTIVE";
+    if (hasIncrement2Columns) {
+      currentStatus = existingTenant.lifecycle_status || "ACTIVE";
+    } else {
+      const AuditLog = getModel(tx, "AuditLog");
+      if (AuditLog && typeof AuditLog.findMany === "function") {
+        const logs = await AuditLog.findMany({
+          where: {
+            tenant_id: cleanTenantId,
+            entity: "Tenant",
+            action: { in: ["TENANT_SUSPEND", "TENANT_REACTIVATE"] },
+          },
+          orderBy: { created_at: "desc" },
+          take: 1,
+        });
+        if (logs.length > 0 && logs[0].action === "TENANT_SUSPEND") {
+          currentStatus = "SUSPENDED";
+        }
+      }
+    }
+
     if (currentStatus === "SUSPENDED") {
       throw new Error("Tenant is already suspended");
     }
 
-    const currentVersion = typeof existingTenant.version === "number" ? existingTenant.version : 1;
-    const targetVersion = currentVersion + 1;
+    const currentVersion = (hasIncrement2Columns && typeof existingTenant.version === "number") ? existingTenant.version : 1;
+    const targetVersion = hasIncrement2Columns ? currentVersion + 1 : currentVersion;
 
-    // 3. Mutate concrete lifecycle columns and increment version atomically under CAS
-    await txTenant.update({
-      where: { id: cleanTenantId },
-      data: {
-        lifecycle_status: "SUSPENDED",
-        version: targetVersion,
-        updated_at: now,
-      },
-    });
+    // 3. Mutate concrete lifecycle columns and increment version atomically under CAS (or update timestamp if legacy)
+    if (hasIncrement2Columns) {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: {
+          lifecycle_status: "SUSPENDED",
+          version: targetVersion,
+          updated_at: now,
+        },
+      });
+    } else {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: {
+          updated_at: now,
+        },
+      });
+    }
 
     // 4. Atomically insert version-stamped AuditLog record with 5-column proof (APPR-01)
     const { logAuditTx } = await import("../audit/logger");
@@ -1140,44 +1216,84 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
       });
     }
 
-    // 2. Read authoritative state under lock
-    let existingTenant = null;
+    // 2. Read authoritative state under lock (with legacy schema fallback)
+    let existingTenant: any = null;
+    let hasIncrement2Columns = true;
     if (typeof txTenant.findUnique === "function") {
-      existingTenant = await txTenant.findUnique({
-        where: { id: cleanTenantId },
-        select: {
-          id: true,
-          version: true,
-          lifecycle_status: true,
-          is_security_restricted: true,
-          is_policy_restricted: true,
-          is_billing_restricted: true,
-          is_administrative_restricted: true,
-        },
-      });
+      try {
+        existingTenant = await txTenant.findUnique({
+          where: { id: cleanTenantId },
+          select: {
+            id: true,
+            version: true,
+            lifecycle_status: true,
+            is_security_restricted: true,
+            is_policy_restricted: true,
+            is_billing_restricted: true,
+            is_administrative_restricted: true,
+          },
+        });
+      } catch {
+        hasIncrement2Columns = false;
+        existingTenant = await txTenant.findUnique({
+          where: { id: cleanTenantId },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+      }
     }
     if (!existingTenant) {
       throw new Error("Tenant not found");
     }
 
-    const currentStatus = existingTenant.lifecycle_status || "ACTIVE";
+    let currentStatus = "ACTIVE";
+    if (hasIncrement2Columns) {
+      currentStatus = existingTenant.lifecycle_status || "ACTIVE";
+    } else {
+      const AuditLog = getModel(tx, "AuditLog");
+      if (AuditLog && typeof AuditLog.findMany === "function") {
+        const logs = await AuditLog.findMany({
+          where: {
+            tenant_id: cleanTenantId,
+            entity: "Tenant",
+            action: { in: ["TENANT_SUSPEND", "TENANT_REACTIVATE"] },
+          },
+          orderBy: { created_at: "desc" },
+          take: 1,
+        });
+        if (logs.length > 0 && logs[0].action === "TENANT_SUSPEND") {
+          currentStatus = "SUSPENDED";
+        }
+      }
+    }
+
     if (currentStatus !== "SUSPENDED") {
       throw new Error("Tenant is not currently suspended");
     }
 
-    const currentVersion = typeof existingTenant.version === "number" ? existingTenant.version : 1;
-    const targetVersion = currentVersion + 1;
+    const currentVersion = (hasIncrement2Columns && typeof existingTenant.version === "number") ? existingTenant.version : 1;
+    const targetVersion = hasIncrement2Columns ? currentVersion + 1 : currentVersion;
 
-    // 3. Mutate lifecycle_status to ACTIVE and increment version
-    // APPR-02 Amendment: Restriction flags remain untouched (preserved)
-    await txTenant.update({
-      where: { id: cleanTenantId },
-      data: {
-        lifecycle_status: "ACTIVE",
-        version: targetVersion,
-        updated_at: now,
-      },
-    });
+    // 3. Mutate lifecycle_status to ACTIVE and increment version (or update timestamp if legacy)
+    if (hasIncrement2Columns) {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: {
+          lifecycle_status: "ACTIVE",
+          version: targetVersion,
+          updated_at: now,
+        },
+      });
+    } else {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: {
+          updated_at: now,
+        },
+      });
+    }
 
     // 4. Atomically insert version-stamped AuditLog record with 5-column proof (APPR-01, APPR-02)
     const { logAuditTx } = await import("../audit/logger");

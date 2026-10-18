@@ -19,51 +19,62 @@ export async function loginAction(prevState: any, formData: FormData) {
     return { error: "Invalid input format" };
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-  const User = getModel(db, "User");
-  const user = User
-    ? await User.findUnique({
-        where: { email: normalizedEmail },
-        select: {
-          id: true,
-          email: true,
-          password_hash: true,
-          status: true,
-        },
-      })
-    : null;
-
-  // To prevent timing attacks, we would ideally still hash/compare against a dummy password,
-  // but for VEYRA foundation, just ensure we do not leak "User not found".
-  let passwordValid = false;
-  if (user && user.password_hash) {
-    passwordValid = await verifyPassword(password, user.password_hash);
-  } else {
-    // Dummy verification to mitigate timing attacks on nonexistent emails
-    await verifyPassword(password, "$2a$10$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-  }
-
-  if (!user || !passwordValid) {
-    return { error: "Invalid email or password" };
-  }
-
-  if (user.status !== "ACTIVE") {
-    return { error: "Account deactivated" };
-  }
-
-  // Create session
-  const sessionData = { userId: user.id, email: user.email };
+  let user: any = null;
+  let cookieStore: any = null;
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-  const sessionToken = await encrypt(sessionData);
 
-  const cookieStore = await cookies();
-  cookieStore.set("session", sessionToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    expires,
-    sameSite: "lax",
-    path: "/",
-  });
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const User = getModel(db, "User");
+    user = User
+      ? await User.findUnique({
+          where: { email: normalizedEmail },
+          select: {
+            id: true,
+            email: true,
+            password_hash: true,
+            status: true,
+          },
+        })
+      : null;
+
+    // To prevent timing attacks, we would ideally still hash/compare against a dummy password,
+    // but for VEYRA foundation, just ensure we do not leak "User not found".
+    let passwordValid = false;
+    if (user && user.password_hash) {
+      passwordValid = await verifyPassword(password, user.password_hash);
+    } else {
+      // Dummy verification to mitigate timing attacks on nonexistent emails
+      await verifyPassword(password, "$2a$10$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+    }
+
+    if (!user || !passwordValid) {
+      return { error: "Invalid email or password" };
+    }
+
+    if (user.status !== "ACTIVE") {
+      return { error: "Account deactivated" };
+    }
+
+    // Create session
+    const sessionData = { userId: user.id, email: user.email };
+    const sessionToken = await encrypt(sessionData);
+
+    cookieStore = await cookies();
+    cookieStore.set("session", sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      expires,
+      sameSite: "lax",
+      path: "/",
+    });
+  } catch (err: any) {
+    if (err?.message?.includes("NEXT_REDIRECT") || err?.digest?.includes("NEXT_REDIRECT")) {
+      throw err;
+    }
+    console.error("[LoginAction Error]", err?.message);
+    return { error: "Authentication service is temporarily unavailable. Please try again shortly." };
+  }
 
   // Check active memberships to configure initial tenant context
   try {

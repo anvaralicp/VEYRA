@@ -32,7 +32,10 @@ export default async function SelectTenantPage() {
   const tenantList: Array<{ id: string; name: string; role: string }> = [];
   for (const m of memberships) {
     try {
-      const t = await Tenant.findUnique({ where: { id: m.tenant_id } });
+      const t = await Tenant.findUnique({
+        where: { id: m.tenant_id },
+        select: { id: true, name: true },
+      });
       if (t) {
         tenantList.push({
           id: t.id,

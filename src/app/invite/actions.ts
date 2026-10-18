@@ -153,7 +153,10 @@ export async function getInvitationDetails(token: string) {
   if (!tenantName && invitation.tenant_id) {
     try {
       const Tenant = getModel(db, "Tenant");
-      const tenant = await Tenant.findUnique({ where: { id: invitation.tenant_id } });
+      const tenant = await Tenant.findUnique({
+        where: { id: invitation.tenant_id },
+        select: { id: true, name: true },
+      });
       tenantName = tenant?.name;
     } catch {
       // Ignore if tenant fetch fails
