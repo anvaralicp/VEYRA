@@ -66,6 +66,7 @@ export interface PlatformOverviewMetrics {
   activeTenants: number;
   suspendedTenants: number;
   pendingTenants: number;
+  unverifiedTenants: number;
   totalRegisteredUsers: number;
   trialAccounts: number;
   trialsNearingExpiry: number;
@@ -145,6 +146,114 @@ export function sanitizeAuditDetails(rawDetails: unknown): Record<string, unknow
 }
 
 /**
+ * Detects whether an error indicates a missing database column or unmigrated schema.
+ * Differentiates schema incompatibility from arbitrary database connection failures.
+ */
+export function isMissingColumnError(error: unknown): boolean {
+  if (!error) return false;
+  const err = error as any;
+  const msg = String(err.message || err.toString() || "").toLowerCase();
+  const code = String(err.code || err.sqlState || err.state || "").toUpperCase();
+
+  // Missing table (Prisma P2021 / Postgres 42P01) is NOT a missing-column condition.
+  // Missing table indicates uninitialized or missing database entities, not an unmigrated column schema.
+  if (code === "P2021" || code === "42P01") {
+    return false;
+  }
+  if (msg.includes("table") && msg.includes("does not exist") && !msg.includes("column")) {
+    return false;
+  }
+
+  // Connection dropouts, timeouts, authentication, or permission errors are NOT schema errors
+  if (
+    msg.includes("connection") ||
+    msg.includes("timeout") ||
+    msg.includes("econnrefused") ||
+    msg.includes("terminated unexpectedly") ||
+    msg.includes("permission denied") ||
+    msg.includes("access denied") ||
+    code === "28P01" || // invalid_password
+    code === "42501" || // insufficient_privilege
+    code === "08006" || // connection_failure
+    code === "08001"    // unable_to_establish_sqlconnection
+  ) {
+    return false;
+  }
+
+  // Recognized missing-column conditions:
+  // Postgres 42703: undefined_column
+  // Prisma P2022: column does not exist
+  if (code === "42703" || code === "P2022") {
+    return true;
+  }
+  if (msg.includes("42703")) {
+    return true;
+  }
+  if (
+    msg.includes("does not exist") &&
+    (msg.includes("column") ||
+      msg.includes("tenant.") ||
+      msg.includes("is_administrative_restricted") ||
+      msg.includes("is_billing_restricted") ||
+      msg.includes("is_policy_restricted") ||
+      msg.includes("is_security_restricted") ||
+      msg.includes("lifecycle_status") ||
+      msg.includes("version"))
+  ) {
+    return true;
+  }
+  if (msg.includes("unknown column") || msg.includes("no such column") || msg.includes("undefinedcolumn")) {
+    return true;
+  }
+  return false;
+}
+
+// Client-scoped schema compatibility cache to avoid cross-connection/cross-environment pollution
+let clientLifecycleColumnsCache = new WeakMap<object, boolean>();
+let clientRestrictionColumnsCache = new WeakMap<object, boolean>();
+let fallbackLifecycleCache: boolean | null = null;
+let fallbackRestrictionCache: boolean | null = null;
+
+export function resetSchemaCompatibilityCache(): void {
+  clientLifecycleColumnsCache = new WeakMap<object, boolean>();
+  clientRestrictionColumnsCache = new WeakMap<object, boolean>();
+  fallbackLifecycleCache = null;
+  fallbackRestrictionCache = null;
+}
+
+function getCachedLifecycleStatus(client: any): boolean | null {
+  if (client && typeof client === "object") {
+    const val = clientLifecycleColumnsCache.get(client);
+    return val !== undefined ? val : null;
+  }
+  return fallbackLifecycleCache;
+}
+
+function setCachedLifecycleStatus(client: any, val: boolean): void {
+  if (client && typeof client === "object") {
+    clientLifecycleColumnsCache.set(client, val);
+  } else {
+    fallbackLifecycleCache = val;
+  }
+}
+
+function getCachedRestrictionStatus(client: any): boolean | null {
+  if (client && typeof client === "object") {
+    const val = clientRestrictionColumnsCache.get(client);
+    return val !== undefined ? val : null;
+  }
+  return fallbackRestrictionCache;
+}
+
+function setCachedRestrictionStatus(client: any, val: boolean): void {
+  if (client && typeof client === "object") {
+    clientRestrictionColumnsCache.set(client, val);
+  } else {
+    fallbackRestrictionCache = val;
+  }
+}
+
+/**
  * Checks whether a tenant is currently suspended.
  * Safe to call from context and auth guards.
  * Propagates failure if lifecycle status cannot be verified (fail-closed).
@@ -172,8 +281,9 @@ export async function isTenantSuspended(tenantId: string, client: any = db): Pro
  * Fail-closed: Propagates error if storage unavailable.
  */
 export async function getTenantRestrictions(tenantId: string, client: any = db): Promise<TenantRestrictionStatus> {
+  const cached = getCachedRestrictionStatus(client);
   const Tenant = getModel(client, "Tenant");
-  if (Tenant && typeof Tenant.findUnique === "function") {
+  if (cached !== false && Tenant && typeof Tenant.findUnique === "function") {
     try {
       const record = await Tenant.findUnique({
         where: { id: tenantId },
@@ -184,6 +294,7 @@ export async function getTenantRestrictions(tenantId: string, client: any = db):
           is_administrative_restricted: true,
         },
       });
+      setCachedRestrictionStatus(client, true);
       if (record) {
         return {
           is_security_restricted: Boolean(record.is_security_restricted),
@@ -192,8 +303,13 @@ export async function getTenantRestrictions(tenantId: string, client: any = db):
           is_administrative_restricted: Boolean(record.is_administrative_restricted),
         };
       }
-    } catch {
-      // Fall through to AuditLog check if columns not yet migrated
+    } catch (err: any) {
+      if (isMissingColumnError(err)) {
+        setCachedRestrictionStatus(client, false);
+        // Fall through to AuditLog check if columns not yet migrated
+      } else {
+        throw new Error(`SERVICE_UNAVAILABLE: Database error during restriction status query: ${err?.message || "Database query failed"}`);
+      }
     }
   }
 
@@ -249,13 +365,15 @@ export async function getTenantLifecycleStatus(
   tenantId: string,
   client: any = db
 ): Promise<TenantLifecycleStatus> {
+  const cached = getCachedLifecycleStatus(client);
   const Tenant = getModel(client, "Tenant");
-  if (Tenant && typeof Tenant.findUnique === "function") {
+  if (cached !== false && Tenant && typeof Tenant.findUnique === "function") {
     try {
       const record = await Tenant.findUnique({
         where: { id: tenantId },
         select: { lifecycle_status: true },
       });
+      setCachedLifecycleStatus(client, true);
       if (record && record.lifecycle_status) {
         if (record.lifecycle_status === "SUSPENDED") {
           return {
@@ -265,8 +383,13 @@ export async function getTenantLifecycleStatus(
         }
         return { status: "ACTIVE" };
       }
-    } catch {
-      // Fall through to AuditLog check if lifecycle_status column not yet migrated
+    } catch (err: any) {
+      if (isMissingColumnError(err)) {
+        setCachedLifecycleStatus(client, false);
+        // Fall through to AuditLog check if lifecycle_status column not yet migrated
+      } else {
+        throw new Error(`SERVICE_UNAVAILABLE: Failed to verify tenant lifecycle status: ${err?.message || "Database query failed"}`);
+      }
     }
   }
 
@@ -545,14 +668,23 @@ export async function getPlatformOverviewMetrics(): Promise<PlatformOverviewMetr
   const User = getModel(db, "User");
   const AuditLog = getModel(db, "AuditLog");
 
-  const allTenants = Tenant && typeof Tenant.findMany === "function"
-    ? await Tenant.findMany({
+  let allTenants: Array<{ id: string; created_at: Date }> = [];
+  if (Tenant && typeof Tenant.findMany === "function") {
+    try {
+      allTenants = await Tenant.findMany({
         select: {
           id: true,
           created_at: true,
         },
-      })
-    : [];
+      });
+    } catch (err: any) {
+      if (isMissingColumnError(err)) {
+        allTenants = [];
+      } else {
+        throw err;
+      }
+    }
+  }
   const totalRegisteredUsers = User && typeof User.count === "function" ? await User.count() : 0;
 
   const planDistribution: Record<string, number> = {
@@ -565,6 +697,7 @@ export async function getPlatformOverviewMetrics(): Promise<PlatformOverviewMetr
   let activeTenants = 0;
   let suspendedTenants = 0;
   let pendingTenants = 0;
+  let unverifiedTenants = 0;
   let trialAccounts = 0;
   let trialsNearingExpiry = 0;
   let trialsExpired = 0;
@@ -572,13 +705,25 @@ export async function getPlatformOverviewMetrics(): Promise<PlatformOverviewMetr
   const onboardingPending = 0;
 
   for (const t of allTenants) {
-    const lifecycle = await getTenantLifecycleStatus(t.id);
-    if (lifecycle.status === "SUSPENDED") {
-      suspendedTenants++;
-    } else if (lifecycle.status === "PENDING") {
-      pendingTenants++;
-    } else {
-      activeTenants++;
+    try {
+      const lifecycle = await getTenantLifecycleStatus(t.id);
+      if (lifecycle.status === "SUSPENDED") {
+        suspendedTenants++;
+      } else if (lifecycle.status === "PENDING") {
+        pendingTenants++;
+      } else if (lifecycle.status === "ACTIVE") {
+        activeTenants++;
+      } else {
+        unverifiedTenants++;
+      }
+    } catch (err: any) {
+      if (err?.message?.startsWith("SERVICE_UNAVAILABLE")) {
+        // Lifecycle status cannot be established from trustworthy evidence:
+        // NEVER classify as ACTIVE!
+        unverifiedTenants++;
+      } else {
+        throw err;
+      }
     }
 
     let sub: TenantSubscriptionMeta;
@@ -665,8 +810,12 @@ export async function getPlatformOverviewMetrics(): Promise<PlatformOverviewMetr
         }));
       }
     }
-  } catch {
-    throw new Error("SERVICE_UNAVAILABLE: Failed to retrieve platform audit events for overview metrics");
+  } catch (err: any) {
+    if (isMissingColumnError(err)) {
+      recentEvents = [];
+    } else {
+      throw new Error("SERVICE_UNAVAILABLE: Failed to retrieve platform audit events for overview metrics");
+    }
   }
 
   return {
@@ -674,6 +823,7 @@ export async function getPlatformOverviewMetrics(): Promise<PlatformOverviewMetr
     activeTenants,
     suspendedTenants,
     pendingTenants,
+    unverifiedTenants,
     totalRegisteredUsers,
     trialAccounts,
     trialsNearingExpiry,

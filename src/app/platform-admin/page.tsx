@@ -5,6 +5,7 @@ import {
   Users,
   Clock,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   ShieldCheck,
   ArrowRight,
@@ -67,6 +68,12 @@ export default async function PlatformAdminDashboard() {
             {metrics.pendingTenants > 0 && (
               <span className="flex items-center gap-1 text-amber-400 font-medium">
                 {metrics.pendingTenants} pending
+              </span>
+            )}
+            {metrics.unverifiedTenants > 0 && (
+              <span className="flex items-center gap-1 text-slate-400 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                {metrics.unverifiedTenants} unverified
               </span>
             )}
           </div>

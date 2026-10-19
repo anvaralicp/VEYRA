@@ -51,12 +51,14 @@ export function adaptPrisma7(ormCollection: any): any {
       const normalizedWhere = normalizeWhere(args?.where);
       let q = ormCollection.where(normalizedWhere);
       if (args?.include) q = applyIncludes(q, args.include);
+      if (args?.select) q = applySelect(q, args.select);
       return q.first();
     },
     findUniqueOrThrow: async (args: any) => {
       const normalizedWhere = normalizeWhere(args?.where);
       let q = ormCollection.where(normalizedWhere);
       if (args?.include) q = applyIncludes(q, args.include);
+      if (args?.select) q = applySelect(q, args.select);
       const res = await q.first();
       if (!res) throw new Error("Record not found");
       return res;
@@ -65,12 +67,18 @@ export function adaptPrisma7(ormCollection: any): any {
       const normalizedWhere = normalizeWhere(args?.where);
       let q = normalizedWhere ? ormCollection.where(normalizedWhere) : ormCollection;
       if (args?.include) q = applyIncludes(q, args.include);
+      if (args?.select) q = applySelect(q, args.select);
+      if (args?.orderBy) q = applyOrderBy(q, args.orderBy);
+      if (typeof args?.skip === "number" && typeof q.offset === "function") q = q.offset(args.skip);
       return q.first();
     },
     findFirstOrThrow: async (args: any) => {
       const normalizedWhere = normalizeWhere(args?.where);
       let q = normalizedWhere ? ormCollection.where(normalizedWhere) : ormCollection;
       if (args?.include) q = applyIncludes(q, args.include);
+      if (args?.select) q = applySelect(q, args.select);
+      if (args?.orderBy) q = applyOrderBy(q, args.orderBy);
+      if (typeof args?.skip === "number" && typeof q.offset === "function") q = q.offset(args.skip);
       const res = await q.first();
       if (!res) throw new Error("Record not found");
       return res;
@@ -79,6 +87,10 @@ export function adaptPrisma7(ormCollection: any): any {
       const normalizedWhere = normalizeWhere(args?.where);
       let q = normalizedWhere ? ormCollection.where(normalizedWhere) : ormCollection;
       if (args?.include) q = applyIncludes(q, args.include);
+      if (args?.select) q = applySelect(q, args.select);
+      if (args?.orderBy) q = applyOrderBy(q, args.orderBy);
+      if (typeof args?.skip === "number" && typeof q.offset === "function") q = q.offset(args.skip);
+      if (typeof args?.take === "number" && typeof q.limit === "function") q = q.limit(args.take);
       return q.all();
     },
     count: async (args: any) => {
@@ -186,6 +198,54 @@ function applyIncludes(q: any, include: any): any {
         if ((val as any).where) cq = cq.where(normalizeWhere((val as any).where));
         return cq;
       });
+    }
+  }
+  return q;
+}
+
+function applySelect(q: any, select: any): any {
+  if (!select || typeof select !== "object") return q;
+  const entries = Object.entries(select);
+  if (entries.length === 0) {
+    throw new Error("The `select` option cannot be an empty object.");
+  }
+
+  const scalarFields: string[] = [];
+  const relationFields: Record<string, any> = {};
+
+  for (const [key, val] of entries) {
+    if (val === true) {
+      scalarFields.push(key);
+    } else if (val && typeof val === "object") {
+      relationFields[key] = val;
+    }
+  }
+
+  if (scalarFields.length === 0 && Object.keys(relationFields).length === 0) {
+    throw new Error("The `select` option must contain at least one field or relation selection.");
+  }
+
+  if (typeof q.select === "function" && scalarFields.length > 0) {
+    q = q.select(...scalarFields);
+  }
+
+  if (Object.keys(relationFields).length > 0) {
+    q = applyIncludes(q, relationFields);
+  }
+
+  return q;
+}
+
+function applyOrderBy(q: any, orderBy: any): any {
+  if (!orderBy || typeof q.orderBy !== "function") return q;
+  const orders = Array.isArray(orderBy) ? orderBy : [orderBy];
+  for (const order of orders) {
+    if (!order || typeof order !== "object") continue;
+    for (const [col, dir] of Object.entries(order)) {
+      if (typeof dir === "string") {
+        const isDesc = dir.toLowerCase() === "desc";
+        q = q.orderBy((m: any) => (isDesc ? m[col]?.desc() : m[col]?.asc()));
+      }
     }
   }
   return q;
