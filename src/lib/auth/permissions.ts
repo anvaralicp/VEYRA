@@ -238,6 +238,9 @@ export const SYSTEM_PERMISSIONS = [
   { key: "platform.tenant.reactivate", resource: "platform_tenant", action: "reactivate", description: "Reactivate suspended tenant account" },
   { key: "platform.tenant.invite_admin", resource: "platform_tenant", action: "invite_admin", description: "Invite or manage tenant administrators" },
   { key: "platform.audit.view", resource: "platform_audit", action: "view", description: "View platform administrative audit trail" },
+  { key: "platform.sales.view", resource: "platform_sales", action: "view", description: "View inbound sales enquiries and platform sales pipeline" },
+  { key: "platform.sales.manage", resource: "platform_sales", action: "manage", description: "Manage platform sales enquiry status, qualification and conversion" },
+  { key: "platform.financials.view", resource: "platform_financials", action: "view", description: "View platform financial KPIs, plan distributions and projected revenue" },
 ];
 
 export const PLATFORM_PERMISSIONS = SYSTEM_PERMISSIONS.filter((p) => p.key.startsWith("platform."));

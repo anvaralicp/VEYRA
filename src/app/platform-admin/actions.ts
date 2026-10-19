@@ -72,3 +72,21 @@ export async function revokeTenantAdminInvitationAction(formData: FormData): Pro
   }
   revalidatePath("/platform-admin/invitations");
 }
+
+import type { SalesEnquiryStatus } from "../../lib/platform/sales-service";
+
+export async function updateSalesEnquiryStatusAction(formData: FormData): Promise<void> {
+  const enquiryId = formData.get("enquiryId") as string;
+  const status = formData.get("status") as SalesEnquiryStatus;
+  const reason = (formData.get("reason") as string) || undefined;
+
+  if (!enquiryId || !status) {
+    throw new Error("Enquiry ID and target status are required.");
+  }
+
+  const { updateSalesEnquiryStatus } = await import("../../lib/platform/sales-service");
+  await updateSalesEnquiryStatus(enquiryId, status, reason);
+  revalidatePath("/platform-admin/sales");
+  revalidatePath("/platform-admin");
+}
+

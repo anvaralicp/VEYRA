@@ -12,6 +12,8 @@ import {
   LogOut,
   Shield,
   Lock,
+  Briefcase,
+  DollarSign,
 } from "lucide-react";
 
 export const metadata = {
@@ -111,6 +113,20 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
               >
                 <LayoutDashboard className="w-4 h-4 text-indigo-400" />
                 Overview
+              </Link>
+              <Link
+                href="/platform-admin/sales"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <Briefcase className="w-4 h-4 text-emerald-400" />
+                Sales
+              </Link>
+              <Link
+                href="/platform-admin/financials"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <DollarSign className="w-4 h-4 text-teal-400" />
+                Financials
               </Link>
               <Link
                 href="/platform-admin/tenants"
