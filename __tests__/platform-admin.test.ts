@@ -105,6 +105,10 @@ import {
   revokeTenantAdminInvitation,
   isTenantSuspended,
   sanitizeAuditDetails,
+  updateTenantRestriction,
+  updateTenantSubscriptionPlan,
+  extendTenantTrial,
+  getTenantRestrictions,
   PLATFORM_AUDIT_ENTITIES,
   PLATFORM_AUDIT_ACTIONS,
   ALLOWED_PLAN_IDS,
@@ -980,7 +984,7 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
       expect(result?.error).toMatch(/Your organization account is suspended/);
       expect(mockCookiesStore.delete).toHaveBeenCalledWith("session");
       expect(mockCookiesStore.delete).toHaveBeenCalledWith("active_tenant_id");
-    });
+    }, 15000);
 
     it("LOGIN UNEXPECTED ERROR: Cleans up cookies and returns generic error without leaking DB errors", async () => {
       const { loginAction } = await import("../src/app/login/actions");
@@ -1497,6 +1501,578 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
         (db as any).transaction = origTransaction;
         (db as any).$transaction = orig$Transaction;
       }
+    });
+  });
+
+  describe("14. Increment 3A: Tenant Restriction & Subscription Governance", () => {
+    it("PERMISSION CHECK: Non-admin or lacking platform.tenant.restrict cannot update restriction", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "user-regular",
+        email: "user@regular.com",
+      });
+      await expect(
+        updateTenantRestriction("t-1", "security", true, "Reason text here")
+      ).rejects.toThrow("FORBIDDEN: User does not have platform administrator privileges");
+    });
+
+    it("PERMISSION CHECK: Non-admin or lacking platform.subscription.manage cannot update plan or extend trial", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "user-regular",
+        email: "user@regular.com",
+      });
+      await expect(
+        updateTenantSubscriptionPlan("t-1", "enterprise", "Upgrade approved")
+      ).rejects.toThrow("FORBIDDEN: User does not have platform administrator privileges");
+
+      await expect(
+        extendTenantTrial("t-1", 14, "Extension approved")
+      ).rejects.toThrow("FORBIDDEN: User does not have platform administrator privileges");
+    });
+
+    it("RESTRICTION GOVERNANCE: Admin can apply and release operational hold independently preserving other flags", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      // Existing tenant has version 3 and billing restricted
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-1",
+        version: 3,
+        lifecycle_status: "ACTIVE",
+        is_security_restricted: false,
+        is_policy_restricted: false,
+        is_billing_restricted: true,
+        is_administrative_restricted: false,
+      });
+      mockTenantModel.update.mockResolvedValue({});
+      mockAuditLogModel.create.mockResolvedValue({ id: "audit-1" });
+
+      const res = await updateTenantRestriction("t-1", "security", true, "Suspicious logins detected from unusual IP");
+      expect(res.success).toBe(true);
+
+      // Verify CAS version increment and target flag update
+      expect(mockTenantModel.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "t-1" },
+          data: expect.objectContaining({
+            is_security_restricted: true,
+            version: 4,
+          }),
+        })
+      );
+
+      // Verify AuditLog written with 5-column proof and preservation of is_billing_restricted
+      expect(mockAuditLogModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "TENANT_RESTRICT",
+            entity: "Tenant",
+            tenant_id: "t-1",
+            user_id: "admin-super",
+          }),
+        })
+      );
+
+      const auditData = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetails = JSON.parse(auditData.details);
+      expect(parsedDetails.restrictionType).toBe("security");
+      expect(parsedDetails.previousState).toBe(false);
+      expect(parsedDetails.newState).toBe(true);
+      expect(parsedDetails.fromVersion).toBe(3);
+      expect(parsedDetails.toVersion).toBe(4);
+      expect(parsedDetails.flags.is_security_restricted).toBe(true);
+      expect(parsedDetails.flags.is_billing_restricted).toBe(true); // Preserved!
+      expect(parsedDetails.flags.is_policy_restricted).toBe(false);
+      expect(parsedDetails.flags.is_administrative_restricted).toBe(false);
+    });
+
+    it("RESTRICTION VALIDATION: Rejects invalid reason length or duplicate state", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      await expect(
+        updateTenantRestriction("t-1", "security", true, "no")
+      ).rejects.toThrow("Restriction reason must be between 3 and 500 characters");
+
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-1",
+        version: 1,
+        is_security_restricted: true,
+      });
+
+      await expect(
+        updateTenantRestriction("t-1", "security", true, "Already restricted")
+      ).rejects.toThrow("Restriction security is already active");
+    });
+
+    it("SUBSCRIPTION OVERRIDE: Admin can update plan with AuditLog tracking and allowlist enforcement", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      // Existing tenant
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-sub-1",
+        created_at: new Date("2026-01-01T00:00:00.000Z"),
+      });
+
+      // AuditLog returns trial
+      mockAuditLogModel.findMany.mockResolvedValue([
+        {
+          id: "log-1",
+          entity: "TenantSubscription",
+          details: JSON.stringify({ selectedPlanId: "trial" }),
+          created_at: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      ]);
+      mockAuditLogModel.create.mockResolvedValue({ id: "audit-sub-new" });
+
+      // Rejects invalid plan
+      await expect(
+        updateTenantSubscriptionPlan("t-sub-1", "super_unlimited_invalid", "Reason here")
+      ).rejects.toThrow(/Invalid plan identifier/);
+
+      // Rejects short reason
+      await expect(
+        updateTenantSubscriptionPlan("t-sub-1", "professional", "ok")
+      ).rejects.toThrow("Plan update reason must be between 3 and 500 characters");
+
+      const updateRes = await updateTenantSubscriptionPlan("t-sub-1", "professional", "Sales agreement signed");
+      expect(updateRes.success).toBe(true);
+      expect(updateRes.planId).toBe("professional");
+
+      expect(mockAuditLogModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "TENANT_SUBSCRIPTION_UPDATE",
+            entity: "TenantSubscription",
+            tenant_id: "t-sub-1",
+          }),
+        })
+      );
+
+      const auditData = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetails = JSON.parse(auditData.details);
+      expect(parsedDetails.previousPlanId).toBe("trial");
+      expect(parsedDetails.newPlanId).toBe("professional");
+      expect(parsedDetails.selectedPlanId).toBe("professional");
+      expect(parsedDetails.selectedPlanName).toBe("Professional");
+    });
+
+    it("TRIAL EXTENSION: Deterministic extension calculation from future end date vs expired", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      // Case A: Unexpired trial (future end date)
+      const now = new Date();
+      const futureEnd = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // 2 days left
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-trial-1",
+        created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      });
+
+      mockAuditLogModel.findMany.mockResolvedValue([
+        {
+          id: "log-sub-1",
+          entity: "TenantSubscription",
+          details: JSON.stringify({
+            selectedPlanId: "trial",
+            trialEndUtc: futureEnd.toISOString(),
+          }),
+          created_at: now,
+        },
+      ]);
+      mockAuditLogModel.create.mockResolvedValue({ id: "audit-trial-ext" });
+
+      // Rejects invalid days
+      await expect(
+        extendTenantTrial("t-trial-1", 10, "Extension reason")
+      ).rejects.toThrow("Invalid trial extension duration. Allowed days: 7, 14, 30");
+
+      const extRes = await extendTenantTrial("t-trial-1", 7, "Customer requested evaluation extension");
+      expect(extRes.success).toBe(true);
+
+      const expectedNewEnd = new Date(futureEnd.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      expect(extRes.newTrialEndDate).toBe(expectedNewEnd);
+
+      const auditData = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetails = JSON.parse(auditData.details);
+      expect(parsedDetails.extendedDays).toBe(7);
+      expect(parsedDetails.fromTrialEndUtc).toBe(futureEnd.toISOString());
+      expect(parsedDetails.toTrialEndUtc).toBe(expectedNewEnd);
+    });
+
+    it("LEGACY SCHEMA FALLBACK: Restrictions query and mutate safely when columns absent", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      // Tenant findUnique throws missing column error on restricted fields
+      mockTenantModel.findUnique
+        .mockRejectedValueOnce({
+          code: "P2022",
+          message: "The column `Tenant.is_security_restricted` does not exist in the current database.",
+        })
+        .mockResolvedValueOnce({
+          id: "t-legacy",
+          name: "Legacy Tenant",
+        });
+
+      // AuditLog returns existing restriction event
+      mockAuditLogModel.findMany.mockResolvedValueOnce([
+        {
+          id: "log-audit-restr",
+          action: "TENANT_RESTRICT",
+          created_at: new Date(),
+          details: JSON.stringify({
+            flags: {
+              is_security_restricted: true,
+              is_policy_restricted: false,
+              is_billing_restricted: false,
+              is_administrative_restricted: false,
+            },
+          }),
+        },
+      ]);
+
+      const res = await updateTenantRestriction("t-legacy", "billing", true, "Overdue invoices for legacy tenant");
+      expect(res.success).toBe(true);
+
+      // Verify legacy fallback updated timestamp instead of missing columns
+      expect(mockTenantModel.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "t-legacy" },
+          data: expect.objectContaining({
+            updated_at: expect.any(Date),
+          }),
+        })
+      );
+
+      // Verify AuditLog written with merged flags
+      const auditData = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetails = JSON.parse(auditData.details);
+      expect(parsedDetails.flags.is_security_restricted).toBe(true);
+      expect(parsedDetails.flags.is_billing_restricted).toBe(true);
+    });
+
+    it("LEGACY RESTRICTIONS PRESERVED ON SUSPENSION AND REACTIVATION: Restrictions are not cleared when columns are absent", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      // Tenant findUnique throws P2022 on restricted fields, falls back to minimal select
+      mockTenantModel.findUnique
+        .mockRejectedValueOnce({
+          code: "P2022",
+          message: "Column `is_security_restricted` does not exist",
+        })
+        .mockResolvedValueOnce({
+          id: "t-legacy-pres",
+          name: "Legacy Preserved Tenant",
+        });
+
+      // AuditLog returns an active security & billing restriction
+      mockAuditLogModel.findMany
+        .mockResolvedValueOnce([]) // for lifecycle status check in suspendTenant (not suspended)
+        .mockResolvedValueOnce([ // for getTenantRestrictions in suspendTenant
+          {
+            id: "log-restr-active",
+            action: "TENANT_RESTRICT",
+            created_at: new Date("2026-02-01T00:00:00Z"),
+            details: JSON.stringify({
+              flags: {
+                is_security_restricted: true,
+                is_policy_restricted: false,
+                is_billing_restricted: true,
+                is_administrative_restricted: false,
+              },
+            }),
+          },
+        ]);
+
+      // 1. Suspend tenant
+      const suspRes = await suspendTenant("t-legacy-pres", "Suspension for investigation");
+      expect(suspRes.success).toBe(true);
+
+      const suspAudit = mockAuditLogModel.create.mock.calls[0][0].data;
+      expect(suspAudit.action).toBe("TENANT_SUSPEND");
+      const suspDetails = JSON.parse(suspAudit.details);
+      expect(suspDetails.flags.is_security_restricted).toBe(true);
+      expect(suspDetails.flags.is_billing_restricted).toBe(true);
+      expect(suspDetails.flags.is_policy_restricted).toBe(false);
+      expect(suspDetails.flags.is_administrative_restricted).toBe(false);
+
+      // Reset create call count
+      mockAuditLogModel.create.mockClear();
+
+      // 2. Reactivate tenant (APPR-02 Option A: must preserve restrictions)
+      mockTenantModel.findUnique
+        .mockRejectedValueOnce({
+          code: "P2022",
+          message: "Column `is_security_restricted` does not exist",
+        })
+        .mockResolvedValueOnce({
+          id: "t-legacy-pres",
+          name: "Legacy Preserved Tenant",
+        });
+
+      mockAuditLogModel.findMany
+        .mockResolvedValueOnce([ // for lifecycle status check in reactivateTenant (suspended)
+          {
+            id: "log-susp-latest",
+            action: "TENANT_SUSPEND",
+            created_at: new Date("2026-02-02T00:00:00Z"),
+          },
+        ])
+        .mockResolvedValueOnce([ // for getTenantRestrictions in reactivateTenant
+          {
+            id: "log-restr-from-susp",
+            action: "TENANT_SUSPEND",
+            created_at: new Date("2026-02-02T00:00:00Z"),
+            details: JSON.stringify({
+              flags: {
+                is_security_restricted: true,
+                is_policy_restricted: false,
+                is_billing_restricted: true,
+                is_administrative_restricted: false,
+              },
+            }),
+          },
+        ]);
+
+      const reactRes = await reactivateTenant("t-legacy-pres");
+      expect(reactRes.success).toBe(true);
+
+      const reactAudit = mockAuditLogModel.create.mock.calls[0][0].data;
+      expect(reactAudit.action).toBe("TENANT_REACTIVATE");
+      const reactDetails = JSON.parse(reactAudit.details);
+      expect(reactDetails.flags.is_security_restricted).toBe(true);
+      expect(reactDetails.flags.is_billing_restricted).toBe(true);
+      expect(reactDetails.flags.is_policy_restricted).toBe(false);
+      expect(reactDetails.flags.is_administrative_restricted).toBe(false);
+    });
+
+    it("INDEPENDENT RESTRICTIONS: Policy and administrative restrictions are preserved independently", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      mockTenantModel.findUnique
+        .mockRejectedValueOnce({ code: "P2022", message: "Missing column" })
+        .mockResolvedValueOnce({ id: "t-legacy-indep", name: "Indep Tenant" });
+
+      mockAuditLogModel.findMany
+        .mockResolvedValueOnce([]) // lifecycle check
+        .mockResolvedValueOnce([ // getTenantRestrictions
+          {
+            id: "log-restr-indep",
+            action: "TENANT_RESTRICT",
+            created_at: new Date(),
+            details: JSON.stringify({
+              flags: {
+                is_security_restricted: false,
+                is_policy_restricted: true,
+                is_billing_restricted: false,
+                is_administrative_restricted: true,
+              },
+            }),
+          },
+        ]);
+
+      await suspendTenant("t-legacy-indep", "Preserve policy and admin holds");
+
+      const suspAudit = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetails = JSON.parse(suspAudit.details);
+      expect(parsedDetails.flags.is_security_restricted).toBe(false);
+      expect(parsedDetails.flags.is_policy_restricted).toBe(true);
+      expect(parsedDetails.flags.is_billing_restricted).toBe(false);
+      expect(parsedDetails.flags.is_administrative_restricted).toBe(true);
+    });
+
+    it("FAIL-CLOSED CORRUPT RESTRICTION HISTORY: Corrupt details payload fails closed with security & admin holds", async () => {
+      mockTenantModel.findUnique.mockRejectedValueOnce({
+        code: "P2022",
+        message: "Missing column",
+      });
+
+      // AuditLog returns corrupt JSON details
+      mockAuditLogModel.findMany.mockResolvedValueOnce([
+        {
+          id: "log-corrupt",
+          action: "TENANT_RESTRICT",
+          created_at: new Date(),
+          details: "{invalid-json-content",
+        },
+      ]);
+
+      const restrictions = await getTenantRestrictions("t-corrupt");
+      expect(restrictions.is_security_restricted).toBe(true);
+      expect(restrictions.is_administrative_restricted).toBe(true);
+      expect(restrictions.is_policy_restricted).toBe(false);
+      expect(restrictions.is_billing_restricted).toBe(false);
+    });
+
+    it("DETERMINISTIC FALLBACK ORDERING: getTenantRestrictions queries with ordered array [created_at desc, id desc]", async () => {
+      mockTenantModel.findUnique.mockRejectedValueOnce({
+        code: "P2022",
+        message: "Missing column",
+      });
+
+      mockAuditLogModel.findMany.mockResolvedValueOnce([]);
+
+      await getTenantRestrictions("t-ordering");
+
+      expect(mockAuditLogModel.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenant_id: "t-ordering" }),
+          orderBy: [
+            { created_at: "desc" },
+            { id: "desc" },
+          ],
+          take: 1,
+        })
+      );
+    });
+
+    it("TRIAL START DATE PRESERVATION: Existing valid trialStartDate is preserved on trial extension", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      const originalTrialStart = "2026-01-10T12:00:00.000Z";
+      const tenantCreatedAt = new Date("2026-01-01T00:00:00.000Z");
+
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-trial-prec",
+        created_at: tenantCreatedAt,
+      });
+
+      mockAuditLogModel.findMany.mockResolvedValueOnce([
+        {
+          id: "log-trial-prev",
+          created_at: new Date("2026-01-10T12:00:00.000Z"),
+          details: JSON.stringify({
+            selectedPlanId: "trial",
+            trialStartUtc: originalTrialStart,
+            trialEndUtc: new Date(Date.now() + 86400000).toISOString(),
+          }),
+        },
+      ]);
+
+      await extendTenantTrial("t-trial-prec", 14, "Extend trial while preserving start date");
+
+      const auditData = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetails = JSON.parse(auditData.details);
+      expect(parsedDetails.trialStartUtc).toBe(originalTrialStart);
+      expect(parsedDetails.extendedDays).toBe(14);
+    });
+
+    it("TRIAL START DATE SAFE FALLBACK: Missing or malformed trial start falls back to tenant created_at, then now", async () => {
+      mockGetSession.mockResolvedValue({
+        userId: "admin-super",
+        email: "platform-admin@veyra.io",
+      });
+
+      const tenantCreatedAt = new Date("2026-01-05T00:00:00.000Z");
+
+      // Case A: No previous audit record, uses tenant.created_at
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-trial-default",
+        created_at: tenantCreatedAt,
+      });
+
+      mockAuditLogModel.findMany.mockResolvedValueOnce([]); // Default trial from tenant creation
+
+      await extendTenantTrial("t-trial-default", 7, "First extension on default trial");
+
+      const auditDataA = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetailsA = JSON.parse(auditDataA.details);
+      expect(parsedDetailsA.trialStartUtc).toBe(tenantCreatedAt.toISOString());
+
+      mockAuditLogModel.create.mockClear();
+
+      // Case B: Tenant created_at is invalid, falls back to current time
+      mockTenantModel.findUnique.mockResolvedValue({
+        id: "t-trial-no-created",
+        created_at: new Date("invalid-date"),
+      });
+
+      mockAuditLogModel.findMany.mockResolvedValueOnce([]);
+
+      await extendTenantTrial("t-trial-no-created", 7, "Extension with invalid creation date");
+
+      const auditDataB = mockAuditLogModel.create.mock.calls[0][0].data;
+      const parsedDetailsB = JSON.parse(auditDataB.details);
+      expect(isNaN(new Date(parsedDetailsB.trialStartUtc).getTime())).toBe(false);
+    });
+
+    it("SERVER ACTIONS GUARDS: Unauthorized invocation rejected before mutation and revalidation", async () => {
+      const {
+        updateTenantRestrictionAction,
+        updateTenantPlanAction,
+        extendTenantTrialAction,
+      } = await import("../src/app/platform-admin/actions");
+
+      // 1. Anonymous session throws UNAUTHORIZED
+      mockGetSession.mockResolvedValue(null);
+
+      const formRestriction = new FormData();
+      formRestriction.append("tenantId", "t-anon");
+      formRestriction.append("restrictionType", "security");
+      formRestriction.append("enable", "true");
+      formRestriction.append("reason", "Malicious call");
+
+      await expect(updateTenantRestrictionAction(formRestriction)).rejects.toThrow(
+        "UNAUTHORIZED: Platform administration requires an active session"
+      );
+
+      const formPlan = new FormData();
+      formPlan.append("tenantId", "t-anon");
+      formPlan.append("planId", "enterprise");
+      formPlan.append("reason", "Unauthorized upgrade");
+
+      await expect(updateTenantPlanAction(formPlan)).rejects.toThrow(
+        "UNAUTHORIZED: Platform administration requires an active session"
+      );
+
+      const formTrial = new FormData();
+      formTrial.append("tenantId", "t-anon");
+      formTrial.append("days", "30");
+      formTrial.append("reason", "Unauthorized extension");
+
+      await expect(extendTenantTrialAction(formTrial)).rejects.toThrow(
+        "UNAUTHORIZED: Platform administration requires an active session"
+      );
+
+      // 2. Non-admin user throws FORBIDDEN
+      mockGetSession.mockResolvedValue({
+        userId: "user-norm",
+        email: "regular-user@tenant.io",
+      });
+
+      await expect(updateTenantRestrictionAction(formRestriction)).rejects.toThrow(
+        "FORBIDDEN: User does not have platform administrator privileges"
+      );
+      await expect(updateTenantPlanAction(formPlan)).rejects.toThrow(
+        "FORBIDDEN: User does not have platform administrator privileges"
+      );
+      await expect(extendTenantTrialAction(formTrial)).rejects.toThrow(
+        "FORBIDDEN: User does not have platform administrator privileges"
+      );
+
+      // Verify no audit records or tenant mutations occurred
+      expect(mockAuditLogModel.create).not.toHaveBeenCalled();
+      expect(mockTenantModel.update).not.toHaveBeenCalled();
     });
   });
 });

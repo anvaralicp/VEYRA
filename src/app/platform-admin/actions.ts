@@ -90,3 +90,61 @@ export async function updateSalesEnquiryStatusAction(formData: FormData): Promis
   revalidatePath("/platform-admin");
 }
 
+import type { TenantRestrictionType } from "../../lib/platform/tenant-service";
+import { requirePlatformPermission } from "../../lib/auth/platform";
+
+export async function updateTenantRestrictionAction(formData: FormData): Promise<void> {
+  await requirePlatformPermission("platform.tenant.restrict");
+  const tenantId = formData.get("tenantId") as string;
+  const restrictionType = formData.get("restrictionType") as TenantRestrictionType;
+  const enable = formData.get("enable") === "true";
+  const reason = formData.get("reason") as string;
+
+  if (!tenantId || !restrictionType) {
+    throw new Error("Tenant ID and restriction type are required.");
+  }
+
+  const { updateTenantRestriction } = await import("../../lib/platform/tenant-service");
+  await updateTenantRestriction(tenantId, restrictionType, enable, reason);
+  revalidatePath(`/platform-admin/tenants/${tenantId}`);
+  revalidatePath("/platform-admin/tenants");
+  revalidatePath("/platform-admin");
+}
+
+export async function updateTenantPlanAction(formData: FormData): Promise<void> {
+  await requirePlatformPermission("platform.subscription.manage");
+  const tenantId = formData.get("tenantId") as string;
+  const planId = formData.get("planId") as string;
+  const reason = formData.get("reason") as string;
+
+  if (!tenantId || !planId) {
+    throw new Error("Tenant ID and plan identifier are required.");
+  }
+
+  const { updateTenantSubscriptionPlan } = await import("../../lib/platform/tenant-service");
+  await updateTenantSubscriptionPlan(tenantId, planId, reason);
+  revalidatePath(`/platform-admin/tenants/${tenantId}`);
+  revalidatePath("/platform-admin/tenants");
+  revalidatePath("/platform-admin/financials");
+  revalidatePath("/platform-admin");
+}
+
+export async function extendTenantTrialAction(formData: FormData): Promise<void> {
+  await requirePlatformPermission("platform.subscription.manage");
+  const tenantId = formData.get("tenantId") as string;
+  const daysStr = formData.get("days") as string;
+  const reason = formData.get("reason") as string;
+
+  const days = parseInt(daysStr, 10);
+  if (!tenantId || isNaN(days)) {
+    throw new Error("Tenant ID and valid extension days are required.");
+  }
+
+  const { extendTenantTrial } = await import("../../lib/platform/tenant-service");
+  await extendTenantTrial(tenantId, days, reason);
+  revalidatePath(`/platform-admin/tenants/${tenantId}`);
+  revalidatePath("/platform-admin/tenants");
+  revalidatePath("/platform-admin/financials");
+  revalidatePath("/platform-admin");
+}
+

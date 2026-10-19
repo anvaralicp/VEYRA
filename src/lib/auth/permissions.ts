@@ -240,6 +240,8 @@ export const SYSTEM_PERMISSIONS = [
   { key: "platform.audit.view", resource: "platform_audit", action: "view", description: "View platform administrative audit trail" },
   { key: "platform.sales.view", resource: "platform_sales", action: "view", description: "View inbound sales enquiries and platform sales pipeline" },
   { key: "platform.sales.manage", resource: "platform_sales", action: "manage", description: "Manage platform sales enquiry status, qualification and conversion" },
+  { key: "platform.tenant.restrict", resource: "platform_tenant", action: "restrict", description: "Apply, modify, or release tenant administrative restrictions" },
+  { key: "platform.subscription.manage", resource: "platform_subscription", action: "manage", description: "Manage tenant subscription plans, pricing tier overrides, and trial extensions" },
   { key: "platform.financials.view", resource: "platform_financials", action: "view", description: "View platform financial KPIs, plan distributions and projected revenue" },
 ];
 

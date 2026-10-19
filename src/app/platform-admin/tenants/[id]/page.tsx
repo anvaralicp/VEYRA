@@ -6,6 +6,9 @@ import {
   reactivateTenantAction,
   inviteTenantAdminAction,
   revokeTenantAdminInvitationAction,
+  updateTenantRestrictionAction,
+  updateTenantPlanAction,
+  extendTenantTrialAction,
 } from "../../actions";
 import {
   Building2,
@@ -21,6 +24,11 @@ import {
   Trash2,
   Calendar,
   Layers,
+  Lock,
+  Unlock,
+  CreditCard,
+  FileText,
+  ShieldAlert,
 } from "lucide-react";
 
 export const instant = false;
@@ -168,16 +176,263 @@ export default async function PlatformTenantDetailPage({ params }: TenantDetailP
             </div>
           </div>
 
-          {/* Subscription & Trial Metadata Card */}
+          {/* Operational Restriction Governance Card */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              Subscription & Trial Status
-            </h2>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-400" />
+                Restriction Governance
+              </h2>
+              <span className="text-[11px] text-slate-500 font-mono">Independent Operational Holds</span>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Fine-grained operational controls to restrict specific tenant capabilities without completely suspending the organization.
+              All restriction changes require an explicit audit justification and are logged with transactional proof.
+            </p>
+
+            <div className="space-y-3 pt-1">
+              {/* Security Isolation Restriction */}
+              <div className="p-3.5 rounded-lg bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-rose-400" />
+                      Security Isolation
+                    </span>
+                    {tenant.restrictions.is_security_restricted ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        RESTRICTED
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        CLEAR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Immediately locks tenant access across CRM, API keys, and background workers during suspected credential leaks or anomalies.
+                  </div>
+                </div>
+                <form action={updateTenantRestrictionAction} className="flex items-center gap-2 shrink-0">
+                  <input type="hidden" name="tenantId" value={tenant.id} />
+                  <input type="hidden" name="restrictionType" value="security" />
+                  <input type="hidden" name="enable" value={tenant.restrictions.is_security_restricted ? "false" : "true"} />
+                  <input
+                    type="text"
+                    name="reason"
+                    placeholder="Mandatory justification..."
+                    required
+                    className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44"
+                  />
+                  <button
+                    type="submit"
+                    className={`px-3 py-1 rounded font-medium text-xs transition-colors inline-flex items-center gap-1 ${
+                      tenant.restrictions.is_security_restricted
+                        ? "bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60"
+                        : "bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700/60"
+                    }`}
+                  >
+                    {tenant.restrictions.is_security_restricted ? (
+                      <>
+                        <Unlock className="w-3 h-3" />
+                        Release
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        Apply Hold
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Billing Delinquency Restriction */}
+              <div className="p-3.5 rounded-lg bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                      Billing Delinquency
+                    </span>
+                    {tenant.restrictions.is_billing_restricted ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        RESTRICTED
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        CLEAR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Blocks CRM write actions, quotations, and exports due to overdue invoices while allowing tenant billing contact login.
+                  </div>
+                </div>
+                <form action={updateTenantRestrictionAction} className="flex items-center gap-2 shrink-0">
+                  <input type="hidden" name="tenantId" value={tenant.id} />
+                  <input type="hidden" name="restrictionType" value="billing" />
+                  <input type="hidden" name="enable" value={tenant.restrictions.is_billing_restricted ? "false" : "true"} />
+                  <input
+                    type="text"
+                    name="reason"
+                    placeholder="Mandatory justification..."
+                    required
+                    className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44"
+                  />
+                  <button
+                    type="submit"
+                    className={`px-3 py-1 rounded font-medium text-xs transition-colors inline-flex items-center gap-1 ${
+                      tenant.restrictions.is_billing_restricted
+                        ? "bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60"
+                        : "bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700/60"
+                    }`}
+                  >
+                    {tenant.restrictions.is_billing_restricted ? (
+                      <>
+                        <Unlock className="w-3 h-3" />
+                        Release
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        Apply Hold
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Policy Enforcement Restriction */}
+              <div className="p-3.5 rounded-lg bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-blue-400" />
+                      Policy Violation Hold
+                    </span>
+                    {tenant.restrictions.is_policy_restricted ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        RESTRICTED
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        CLEAR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Restricts external sharing, email broadcast, and customer data exports pending terms of service investigation.
+                  </div>
+                </div>
+                <form action={updateTenantRestrictionAction} className="flex items-center gap-2 shrink-0">
+                  <input type="hidden" name="tenantId" value={tenant.id} />
+                  <input type="hidden" name="restrictionType" value="policy" />
+                  <input type="hidden" name="enable" value={tenant.restrictions.is_policy_restricted ? "false" : "true"} />
+                  <input
+                    type="text"
+                    name="reason"
+                    placeholder="Mandatory justification..."
+                    required
+                    className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44"
+                  />
+                  <button
+                    type="submit"
+                    className={`px-3 py-1 rounded font-medium text-xs transition-colors inline-flex items-center gap-1 ${
+                      tenant.restrictions.is_policy_restricted
+                        ? "bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60"
+                        : "bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700/60"
+                    }`}
+                  >
+                    {tenant.restrictions.is_policy_restricted ? (
+                      <>
+                        <Unlock className="w-3 h-3" />
+                        Release
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        Apply Hold
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Administrative Lock Restriction */}
+              <div className="p-3.5 rounded-lg bg-slate-950/60 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-purple-400" />
+                      Administrative Freeze
+                    </span>
+                    {tenant.restrictions.is_administrative_restricted ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        RESTRICTED
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        CLEAR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Freezes administrative role changes, plan modifications, and organization configuration during ownership transfers.
+                  </div>
+                </div>
+                <form action={updateTenantRestrictionAction} className="flex items-center gap-2 shrink-0">
+                  <input type="hidden" name="tenantId" value={tenant.id} />
+                  <input type="hidden" name="restrictionType" value="administrative" />
+                  <input type="hidden" name="enable" value={tenant.restrictions.is_administrative_restricted ? "false" : "true"} />
+                  <input
+                    type="text"
+                    name="reason"
+                    placeholder="Mandatory justification..."
+                    required
+                    className="bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44"
+                  />
+                  <button
+                    type="submit"
+                    className={`px-3 py-1 rounded font-medium text-xs transition-colors inline-flex items-center gap-1 ${
+                      tenant.restrictions.is_administrative_restricted
+                        ? "bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60"
+                        : "bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700/60"
+                    }`}
+                  >
+                    {tenant.restrictions.is_administrative_restricted ? (
+                      <>
+                        <Unlock className="w-3 h-3" />
+                        Release
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3 h-3" />
+                        Apply Hold
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          {/* Subscription & Plan Governance Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-400" />
+                Subscription & Plan Governance
+              </h2>
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 capitalize">
+                Current: {tenant.planName}
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <span className="text-slate-500 block">Subscription Plan</span>
+                <span className="text-slate-500 block">Subscription Tier</span>
                 <span className="text-white font-semibold text-sm mt-0.5 block capitalize">{tenant.planName}</span>
               </div>
               <div>
@@ -218,6 +473,79 @@ export default async function PlatformTenantDetailPage({ params }: TenantDetailP
                     Active ({tenant.trialDaysRemaining} days remaining)
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Plan Override Form */}
+            <form action={updateTenantPlanAction} className="bg-slate-950/60 border border-slate-800 rounded-lg p-3.5 space-y-3">
+              <div className="text-xs font-medium text-slate-300">Administrative Plan Override</div>
+              <input type="hidden" name="tenantId" value={tenant.id} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Target Plan</label>
+                  <select
+                    name="planId"
+                    defaultValue={tenant.planId}
+                    className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 capitalize"
+                  >
+                    <option value="trial">Trial (7 Day Standard)</option>
+                    <option value="basic">Basic ($49/mo)</option>
+                    <option value="professional">Professional ($199/mo)</option>
+                    <option value="enterprise">Enterprise ($499/mo)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Mandatory Justification</label>
+                  <input
+                    type="text"
+                    name="reason"
+                    placeholder="E.g. Sales team manual plan upgrade approval"
+                    required
+                    className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                <span className="text-[11px] text-slate-500">
+                  Plan overrides update platform financial and subscription telemetry immediately. Overrides do not charge credit cards.
+                </span>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shrink-0"
+                >
+                  Update Plan
+                </button>
+              </div>
+            </form>
+
+            {/* Trial Extension Controls */}
+            {tenant.planId === "trial" && (
+              <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-3.5 space-y-3">
+                <div className="text-xs font-medium text-slate-300">Extend Trial Evaluation Window</div>
+                <p className="text-[11px] text-slate-400">
+                  Extends evaluation period from current expiration (or from today if expired).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[7, 14, 30].map((days) => (
+                    <form key={days} action={extendTenantTrialAction} className="space-y-2">
+                      <input type="hidden" name="tenantId" value={tenant.id} />
+                      <input type="hidden" name="days" value={days} />
+                      <input
+                        type="text"
+                        name="reason"
+                        placeholder={`Reason for +${days}d...`}
+                        required
+                        className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-[11px] text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="submit"
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-800 hover:bg-indigo-600/30 hover:border-indigo-500/40 text-slate-200 border border-slate-700/60 text-xs font-medium transition-colors"
+                      >
+                        +{days} Days
+                      </button>
+                    </form>
+                  ))}
+                </div>
               </div>
             )}
           </div>

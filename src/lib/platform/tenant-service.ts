@@ -10,6 +10,13 @@ export interface TenantLifecycleStatus {
   suspendedAt?: string;
 }
 
+export interface TenantRestrictionStatus {
+  is_security_restricted: boolean;
+  is_policy_restricted: boolean;
+  is_billing_restricted: boolean;
+  is_administrative_restricted: boolean;
+}
+
 export interface PlatformTenantSummary {
   id: string;
   name: string;
@@ -35,6 +42,7 @@ export interface PlatformTenantDetails extends PlatformTenantSummary {
   timezone: string;
   currency: string;
   updatedAt: string;
+  restrictions: TenantRestrictionStatus;
   administrators: Array<{
     userId: string;
     name: string;
@@ -105,9 +113,35 @@ export const PERMITTED_AUDIT_DETAIL_KEYS = new Set([
   "fromStatus",
   "toStatus",
   "company",
+  "restrictionType",
+  "previousState",
+  "newState",
+  "previousPlanId",
+  "newPlanId",
+  "extendedDays",
+  "newTrialEndUtc",
+  "fromTrialEndUtc",
+  "toTrialEndUtc",
+  "selectedPlanId",
+  "selectedPlanName",
+  "selectedBillingCycle",
+  "trialStartUtc",
+  "trialEndUtc",
+  "fromVersion",
+  "toVersion",
+  "actionClass",
+  "flags",
+  "source",
 ]);
 
-export const PLATFORM_AUDIT_ENTITIES = ["Tenant", "Platform", "Invitation", "TenantBootstrap", "SalesEnquiry"];
+export const PLATFORM_AUDIT_ENTITIES = [
+  "Tenant",
+  "Platform",
+  "Invitation",
+  "TenantBootstrap",
+  "SalesEnquiry",
+  "TenantSubscription",
+];
 
 export const PLATFORM_AUDIT_ACTIONS = [
   "TENANT_SUSPEND",
@@ -116,6 +150,11 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ADMIN_INVITE_REVOKE",
   "CREATE",
   "SALES_ENQUIRY_STATUS_UPDATE",
+  "TENANT_RESTRICT",
+  "TENANT_UNRESTRICT",
+  "TENANT_SUBSCRIPTION_UPDATE",
+  "TENANT_TRIAL_EXTEND",
+  "TRIAL_ACTIVATE",
 ];
 
 /**
@@ -139,6 +178,20 @@ export function sanitizeAuditDetails(rawDetails: unknown): Record<string, unknow
     if (PERMITTED_AUDIT_DETAIL_KEYS.has(key)) {
       if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") {
         sanitized[key] = val;
+      } else if (key === "flags" && typeof val === "object" && val !== null && !Array.isArray(val)) {
+        // Sanitize nested restriction flags dictionary
+        const flagsObj: Record<string, boolean> = {};
+        for (const [fKey, fVal] of Object.entries(val as Record<string, unknown>)) {
+          if (
+            fKey === "is_security_restricted" ||
+            fKey === "is_policy_restricted" ||
+            fKey === "is_billing_restricted" ||
+            fKey === "is_administrative_restricted"
+          ) {
+            flagsObj[fKey] = Boolean(fVal);
+          }
+        }
+        sanitized[key] = flagsObj;
       }
     }
   }
@@ -255,18 +308,6 @@ function setCachedRestrictionStatus(client: any, val: boolean): void {
 
 /**
  * Checks whether a tenant is currently suspended.
- * Safe to call from context and auth guards.
- * Propagates failure if lifecycle status cannot be verified (fail-closed).
- */
-export interface TenantRestrictionStatus {
-  is_security_restricted: boolean;
-  is_policy_restricted: boolean;
-  is_billing_restricted: boolean;
-  is_administrative_restricted: boolean;
-}
-
-/**
- * Checks whether a tenant is currently suspended.
  * Queries concrete lifecycle_status from Tenant with fallback to AuditLog for backwards compatibility.
  * Safe to call from context and auth guards.
  * Propagates failure if lifecycle status cannot be verified (fail-closed).
@@ -315,44 +356,71 @@ export async function getTenantRestrictions(tenantId: string, client: any = db):
 
   // Fallback to AuditLog check for restriction history (legacy schema compatibility)
   const AuditLog = getModel(client, "AuditLog");
-  if (AuditLog && typeof AuditLog.findMany === "function") {
-    try {
-      const logs = await AuditLog.findMany({
-        where: {
-          tenant_id: tenantId,
-          entity: "Tenant",
-          action: "TENANT_RESTRICT",
-        },
-        orderBy: {
-          created_at: "desc",
-        },
-        take: 1,
-      });
+  if (!AuditLog || typeof AuditLog.findMany !== "function") {
+    throw new Error("SERVICE_UNAVAILABLE: Audit storage service is unavailable to verify tenant restriction status");
+  }
 
-      if (logs && logs.length > 0) {
-        let details: any = logs[0].details;
-        if (typeof details === "string") {
-          try { details = JSON.parse(details); } catch { details = null; }
-        }
-        if (details?.flags) {
-          return {
-            is_security_restricted: Boolean(details.flags.is_security_restricted),
-            is_policy_restricted: Boolean(details.flags.is_policy_restricted),
-            is_billing_restricted: Boolean(details.flags.is_billing_restricted),
-            is_administrative_restricted: Boolean(details.flags.is_administrative_restricted),
-          };
-        }
-      }
+  let logs: any[];
+  try {
+    logs = await AuditLog.findMany({
+      where: {
+        tenant_id: tenantId,
+        entity: "Tenant",
+        action: {
+          in: ["TENANT_RESTRICT", "TENANT_UNRESTRICT", "TENANT_SUSPEND", "TENANT_REACTIVATE"],
+        },
+      },
+      select: {
+        id: true,
+        action: true,
+        created_at: true,
+        details: true,
+      },
+      orderBy: [
+        { created_at: "desc" },
+        { id: "desc" },
+      ],
+      take: 1,
+    });
+  } catch (error: any) {
+    throw new Error(`SERVICE_UNAVAILABLE: Audit storage service is unavailable to verify tenant restriction status: ${error?.message || "Database query failed"}`);
+  }
+
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return {
+      is_security_restricted: false,
+      is_policy_restricted: false,
+      is_billing_restricted: false,
+      is_administrative_restricted: false,
+    };
+  }
+
+  const latest = logs[0];
+  let details: any = latest.details;
+  if (typeof details === "string") {
+    try {
+      details = JSON.parse(details);
     } catch {
-      throw new Error("SERVICE_UNAVAILABLE: Audit storage service is unavailable to verify tenant restriction status");
+      details = null;
     }
   }
 
+  // Fail-closed if corrupt payload encountered on restriction events
+  if (!details || typeof details !== "object" || Array.isArray(details) || !details.flags || typeof details.flags !== "object") {
+    // If the latest event is TENANT_SUSPEND or TENANT_REACTIVATE without valid flags, default to uncorrupted fail-closed or standard flags
+    return {
+      is_security_restricted: true,
+      is_policy_restricted: false,
+      is_billing_restricted: false,
+      is_administrative_restricted: true,
+    };
+  }
+
   return {
-    is_security_restricted: false,
-    is_policy_restricted: false,
-    is_billing_restricted: false,
-    is_administrative_restricted: false,
+    is_security_restricted: Boolean(details.flags.is_security_restricted),
+    is_policy_restricted: Boolean(details.flags.is_policy_restricted),
+    is_billing_restricted: Boolean(details.flags.is_billing_restricted),
+    is_administrative_restricted: Boolean(details.flags.is_administrative_restricted),
   };
 }
 
@@ -1162,6 +1230,8 @@ export async function getPlatformTenantDetails(tenantId: string): Promise<Platfo
     throw new Error("SERVICE_UNAVAILABLE: Failed to retrieve tenant audit trail");
   }
 
+  const restrictions = await getTenantRestrictions(tenant.id);
+
   return {
     id: tenant.id,
     name: tenant.name,
@@ -1184,6 +1254,7 @@ export async function getPlatformTenantDetails(tenantId: string): Promise<Platfo
     isTrialNearingExpiry: sub.isTrialNearingExpiry,
     memberCount,
     onboardingStatus: memberCount > 0 ? "COMPLETED" : "PENDING",
+    restrictions,
     administrators,
     invitations,
     recentAuditEvents,
@@ -1243,6 +1314,10 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
         });
       } catch {
         hasIncrement2Columns = false;
+        setCachedRestrictionStatus(tx, false);
+        setCachedRestrictionStatus(db, false);
+        setCachedLifecycleStatus(tx, false);
+        setCachedLifecycleStatus(db, false);
         existingTenant = await txTenant.findUnique({
           where: { id: cleanTenantId },
           select: {
@@ -1303,6 +1378,19 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
       });
     }
 
+    // Determine restriction flags to record in audit trail
+    let activeFlags: TenantRestrictionStatus;
+    if (hasIncrement2Columns) {
+      activeFlags = {
+        is_security_restricted: Boolean(existingTenant.is_security_restricted),
+        is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
+        is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
+        is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+      };
+    } else {
+      activeFlags = await getTenantRestrictions(cleanTenantId, tx);
+    }
+
     // 4. Atomically insert version-stamped AuditLog record with 5-column proof (APPR-01)
     const { logAuditTx } = await import("../audit/logger");
     await logAuditTx(tx, {
@@ -1320,10 +1408,10 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
         fromStatus: currentStatus,
         toStatus: "SUSPENDED",
         flags: {
-          is_security_restricted: Boolean(existingTenant.is_security_restricted),
-          is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
-          is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
-          is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+          is_security_restricted: activeFlags.is_security_restricted,
+          is_policy_restricted: activeFlags.is_policy_restricted,
+          is_billing_restricted: activeFlags.is_billing_restricted,
+          is_administrative_restricted: activeFlags.is_administrative_restricted,
         },
         source: "RUNTIME",
       },
@@ -1385,6 +1473,10 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
         });
       } catch {
         hasIncrement2Columns = false;
+        setCachedRestrictionStatus(tx, false);
+        setCachedRestrictionStatus(db, false);
+        setCachedLifecycleStatus(tx, false);
+        setCachedLifecycleStatus(db, false);
         existingTenant = await txTenant.findUnique({
           where: { id: cleanTenantId },
           select: {
@@ -1445,6 +1537,19 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
       });
     }
 
+    // Determine restriction flags to record in audit trail (APPR-02 Option A: preserve flags across reactivation)
+    let activeFlags: TenantRestrictionStatus;
+    if (hasIncrement2Columns) {
+      activeFlags = {
+        is_security_restricted: Boolean(existingTenant.is_security_restricted),
+        is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
+        is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
+        is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+      };
+    } else {
+      activeFlags = await getTenantRestrictions(cleanTenantId, tx);
+    }
+
     // 4. Atomically insert version-stamped AuditLog record with 5-column proof (APPR-01, APPR-02)
     const { logAuditTx } = await import("../audit/logger");
     await logAuditTx(tx, {
@@ -1461,16 +1566,365 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
         fromStatus: "SUSPENDED",
         toStatus: "ACTIVE",
         flags: {
-          is_security_restricted: Boolean(existingTenant.is_security_restricted),
-          is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
-          is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
-          is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+          is_security_restricted: activeFlags.is_security_restricted,
+          is_policy_restricted: activeFlags.is_policy_restricted,
+          is_billing_restricted: activeFlags.is_billing_restricted,
+          is_administrative_restricted: activeFlags.is_administrative_restricted,
         },
         source: "RUNTIME",
       },
     });
 
     return { success: true };
+  });
+}
+
+export type TenantRestrictionType = "security" | "policy" | "billing" | "administrative";
+
+export const RESTRICTION_TYPE_TO_FIELD: Record<TenantRestrictionType, keyof TenantRestrictionStatus> = {
+  security: "is_security_restricted",
+  policy: "is_policy_restricted",
+  billing: "is_billing_restricted",
+  administrative: "is_administrative_restricted",
+};
+
+/**
+ * Updates an operational restriction flag for a tenant account.
+ * Enforces server-side permission platform.tenant.restrict.
+ * Concurrency-safe: Runs in a transaction and acquires an exclusive row lock on Tenant.
+ * Fail-closed, preserves all other flags, and writes an atomic AuditLog with 5-column proof.
+ */
+export async function updateTenantRestriction(
+  tenantId: string,
+  restrictionType: TenantRestrictionType,
+  enable: boolean,
+  reason: string
+): Promise<{ success: boolean }> {
+  const actor = await requirePlatformPermission("platform.tenant.restrict");
+
+  if (!tenantId || typeof tenantId !== "string" || !tenantId.trim()) {
+    throw new Error("Invalid tenant identifier");
+  }
+  const cleanTenantId = tenantId.trim();
+
+  if (!restrictionType || !(restrictionType in RESTRICTION_TYPE_TO_FIELD)) {
+    throw new Error("Invalid restriction type");
+  }
+
+  const cleanReason = (reason || "").trim();
+  if (cleanReason.length < 3 || cleanReason.length > 500) {
+    throw new Error("Restriction reason must be between 3 and 500 characters");
+  }
+
+  const targetField = RESTRICTION_TYPE_TO_FIELD[restrictionType];
+
+  return await runTransaction(db, async (tx: any) => {
+    const txTenant = getModel(tx, "Tenant");
+    if (!txTenant || (typeof txTenant.findUnique !== "function" && typeof txTenant.update !== "function")) {
+      throw new Error("SERVICE_UNAVAILABLE: Tenant storage service is unavailable");
+    }
+
+    const now = new Date();
+    // 1. Acquire exclusive row write lock on Tenant (Lock-First Protocol)
+    if (typeof txTenant.update === "function") {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: { updated_at: now },
+      });
+    }
+
+    // 2. Read authoritative state under lock (with legacy schema fallback)
+    let existingTenant: any = null;
+    let hasIncrement2Columns = true;
+    if (typeof txTenant.findUnique === "function") {
+      try {
+        existingTenant = await txTenant.findUnique({
+          where: { id: cleanTenantId },
+          select: {
+            id: true,
+            version: true,
+            lifecycle_status: true,
+            is_security_restricted: true,
+            is_policy_restricted: true,
+            is_billing_restricted: true,
+            is_administrative_restricted: true,
+          },
+        });
+      } catch {
+        hasIncrement2Columns = false;
+        setCachedRestrictionStatus(tx, false);
+        setCachedRestrictionStatus(db, false);
+        existingTenant = await txTenant.findUnique({
+          where: { id: cleanTenantId },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+      }
+    }
+    if (!existingTenant) {
+      throw new Error("Tenant not found");
+    }
+
+    let currentFlags: TenantRestrictionStatus;
+    if (hasIncrement2Columns) {
+      currentFlags = {
+        is_security_restricted: Boolean(existingTenant.is_security_restricted),
+        is_policy_restricted: Boolean(existingTenant.is_policy_restricted),
+        is_billing_restricted: Boolean(existingTenant.is_billing_restricted),
+        is_administrative_restricted: Boolean(existingTenant.is_administrative_restricted),
+      };
+    } else {
+      currentFlags = await getTenantRestrictions(cleanTenantId, tx);
+    }
+
+    const previousState = currentFlags[targetField];
+    if (previousState === enable) {
+      throw new Error(`Restriction ${restrictionType} is already ${enable ? "active" : "disabled"}`);
+    }
+
+    const updatedFlags: TenantRestrictionStatus = {
+      ...currentFlags,
+      [targetField]: enable,
+    };
+
+    const currentVersion = (hasIncrement2Columns && typeof existingTenant.version === "number") ? existingTenant.version : 1;
+    const targetVersion = hasIncrement2Columns ? currentVersion + 1 : currentVersion;
+
+    // 3. Mutate restriction columns and increment version (or touch updated_at if legacy)
+    if (hasIncrement2Columns) {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: {
+          [targetField]: enable,
+          version: targetVersion,
+          updated_at: now,
+        },
+      });
+    } else {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: {
+          updated_at: now,
+        },
+      });
+    }
+
+    // 4. Atomically insert version-stamped AuditLog record with 5-column proof
+    const action = enable ? "TENANT_RESTRICT" : "TENANT_UNRESTRICT";
+    const { logAuditTx } = await import("../audit/logger");
+    await logAuditTx(tx, {
+      tenantId: cleanTenantId,
+      userId: actor.userId,
+      action,
+      entity: "Tenant",
+      entityId: cleanTenantId,
+      details: {
+        actorEmail: actor.email,
+        reason: cleanReason,
+        restrictionType,
+        previousState,
+        newState: enable,
+        fromVersion: currentVersion,
+        toVersion: targetVersion,
+        actionClass: "CLASS_A",
+        flags: updatedFlags,
+        source: "RUNTIME",
+      },
+    });
+
+    return { success: true };
+  });
+}
+
+/**
+ * Updates a tenant's subscription plan.
+ * Enforces server-side permission platform.subscription.manage.
+ * Validates plan against ALLOWED_PLAN_IDS allowlist.
+ * Overwrites/appends TenantSubscription audit log to update financial and subscription telemetry.
+ */
+export async function updateTenantSubscriptionPlan(
+  tenantId: string,
+  newPlanId: string,
+  reason: string
+): Promise<{ success: boolean; planId: string }> {
+  const actor = await requirePlatformPermission("platform.subscription.manage");
+
+  if (!tenantId || typeof tenantId !== "string" || !tenantId.trim()) {
+    throw new Error("Invalid tenant identifier");
+  }
+  const cleanTenantId = tenantId.trim();
+
+  if (!newPlanId || !ALLOWED_PLAN_IDS.has(newPlanId)) {
+    throw new Error(`Invalid plan identifier. Allowed plans: ${Array.from(ALLOWED_PLAN_IDS).join(", ")}`);
+  }
+
+  const cleanReason = (reason || "").trim();
+  if (cleanReason.length < 3 || cleanReason.length > 500) {
+    throw new Error("Plan update reason must be between 3 and 500 characters");
+  }
+
+  return await runTransaction(db, async (tx: any) => {
+    const txTenant = getModel(tx, "Tenant");
+    if (!txTenant || (typeof txTenant.findUnique !== "function" && typeof txTenant.update !== "function")) {
+      throw new Error("SERVICE_UNAVAILABLE: Tenant storage service is unavailable");
+    }
+
+    const now = new Date();
+    // 1. Acquire exclusive row write lock on Tenant
+    if (typeof txTenant.update === "function") {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: { updated_at: now },
+      });
+    }
+
+    // 2. Fetch existing tenant to check existence and retrieve creation date
+    const tenant = await txTenant.findUnique({
+      where: { id: cleanTenantId },
+      select: { id: true, created_at: true },
+    });
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    const currentSub = await getTenantSubscriptionMeta(cleanTenantId, tenant.created_at, tx);
+    const previousPlanId = currentSub.planId;
+
+    if (previousPlanId === newPlanId) {
+      throw new Error(`Tenant is already on plan ${newPlanId}`);
+    }
+
+    const planName = TRUSTED_PLAN_NAMES[newPlanId] || newPlanId;
+
+    // 3. Atomically write TenantSubscription audit record
+    const { logAuditTx } = await import("../audit/logger");
+    await logAuditTx(tx, {
+      tenantId: cleanTenantId,
+      userId: actor.userId,
+      action: "TENANT_SUBSCRIPTION_UPDATE",
+      entity: "TenantSubscription",
+      entityId: cleanTenantId,
+      details: {
+        actorEmail: actor.email,
+        reason: cleanReason,
+        previousPlanId,
+        newPlanId,
+        selectedPlanId: newPlanId,
+        selectedPlanName: planName,
+        selectedBillingCycle: "MONTHLY",
+        trialStartUtc: currentSub.trialStartDate || now.toISOString(),
+        trialEndUtc: currentSub.trialEndDate || now.toISOString(),
+        actionClass: "CLASS_A",
+        source: "RUNTIME",
+      },
+    });
+
+    return { success: true, planId: newPlanId };
+  });
+}
+
+export const ALLOWED_TRIAL_EXTENSION_DAYS = [7, 14, 30] as const;
+export type AllowedTrialExtensionDays = (typeof ALLOWED_TRIAL_EXTENSION_DAYS)[number];
+
+/**
+ * Extends a tenant's evaluation trial period.
+ * Enforces server-side permission platform.subscription.manage.
+ * Extension calculation rule:
+ * - If current trialEndDate > now (unexpired), adds days to trialEndDate.
+ * - If current trialEndDate <= now (expired), adds days to now.
+ */
+export async function extendTenantTrial(
+  tenantId: string,
+  days: number,
+  reason: string
+): Promise<{ success: boolean; newTrialEndDate: string }> {
+  const actor = await requirePlatformPermission("platform.subscription.manage");
+
+  if (!tenantId || typeof tenantId !== "string" || !tenantId.trim()) {
+    throw new Error("Invalid tenant identifier");
+  }
+  const cleanTenantId = tenantId.trim();
+
+  if (!ALLOWED_TRIAL_EXTENSION_DAYS.includes(days as AllowedTrialExtensionDays)) {
+    throw new Error(`Invalid trial extension duration. Allowed days: ${ALLOWED_TRIAL_EXTENSION_DAYS.join(", ")}`);
+  }
+
+  const cleanReason = (reason || "").trim();
+  if (cleanReason.length < 3 || cleanReason.length > 500) {
+    throw new Error("Trial extension reason must be between 3 and 500 characters");
+  }
+
+  return await runTransaction(db, async (tx: any) => {
+    const txTenant = getModel(tx, "Tenant");
+    if (!txTenant || (typeof txTenant.findUnique !== "function" && typeof txTenant.update !== "function")) {
+      throw new Error("SERVICE_UNAVAILABLE: Tenant storage service is unavailable");
+    }
+
+    const now = new Date();
+    // 1. Acquire exclusive row write lock on Tenant
+    if (typeof txTenant.update === "function") {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: { updated_at: now },
+      });
+    }
+
+    // 2. Fetch existing tenant to check existence and retrieve creation date
+    const tenant = await txTenant.findUnique({
+      where: { id: cleanTenantId },
+      select: { id: true, created_at: true },
+    });
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    const currentSub = await getTenantSubscriptionMeta(cleanTenantId, tenant.created_at, tx);
+    if (currentSub.planId !== "trial") {
+      throw new Error("Trial extensions are only applicable to accounts currently on the trial plan");
+    }
+
+    const currentTrialEnd = currentSub.trialEndDate ? new Date(currentSub.trialEndDate) : now;
+    const baseDate = currentTrialEnd.getTime() > now.getTime() ? currentTrialEnd : now;
+    const newTrialEnd = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
+    const newTrialEndUtc = newTrialEnd.toISOString();
+
+    // Preserve valid existing trial start date, falling back to valid tenant creation date, then current UTC time
+    let trialStartUtc: string;
+    if (currentSub.trialStartDate && !isNaN(new Date(currentSub.trialStartDate).getTime())) {
+      trialStartUtc = new Date(currentSub.trialStartDate).toISOString();
+    } else if (tenant.created_at && !isNaN(new Date(tenant.created_at).getTime())) {
+      trialStartUtc = new Date(tenant.created_at).toISOString();
+    } else {
+      trialStartUtc = now.toISOString();
+    }
+
+    // 3. Atomically write TenantSubscription audit record
+    const { logAuditTx } = await import("../audit/logger");
+    await logAuditTx(tx, {
+      tenantId: cleanTenantId,
+      userId: actor.userId,
+      action: "TENANT_TRIAL_EXTEND",
+      entity: "TenantSubscription",
+      entityId: cleanTenantId,
+      details: {
+        actorEmail: actor.email,
+        reason: cleanReason,
+        extendedDays: days,
+        fromTrialEndUtc: currentTrialEnd.toISOString(),
+        toTrialEndUtc: newTrialEndUtc,
+        newTrialEndUtc,
+        selectedPlanId: "trial",
+        selectedPlanName: TRUSTED_PLAN_NAMES.trial,
+        trialStartUtc,
+        trialEndUtc: newTrialEndUtc,
+        actionClass: "CLASS_A",
+        source: "RUNTIME",
+      },
+    });
+
+    return { success: true, newTrialEndDate: newTrialEndUtc };
   });
 }
 

@@ -35,8 +35,8 @@ export interface CanonicalTenantAuditFlags {
 export interface CanonicalTenantAuditDetails {
   actorEmail?: string;
   reason?: string;
-  fromVersion: number;
-  toVersion: number; // Must equal fromVersion + 1
+  fromVersion?: number;
+  toVersion?: number;
   actionClass: "CLASS_A" | "CLASS_B";
   fromStatus?: string;
   toStatus?: string;
@@ -45,13 +45,37 @@ export interface CanonicalTenantAuditDetails {
   source?: "RUNTIME" | "INCREMENT_2_BACKFILL" | "INCREMENT_2_RECONCILIATION";
   migration_key?: string;
   attempt_id?: string;
+  // Increment 3A extensions:
+  restrictionType?: string;
+  previousState?: boolean;
+  newState?: boolean;
+  previousPlanId?: string;
+  newPlanId?: string;
+  selectedPlanId?: string;
+  selectedPlanName?: string;
+  selectedBillingCycle?: string;
+  trialStartUtc?: string;
+  trialEndUtc?: string;
+  extendedDays?: number;
+  newTrialEndUtc?: string;
+  fromTrialEndUtc?: string;
+  toTrialEndUtc?: string;
 }
 
 export interface LogAuditTxParams {
   tenantId: string;
   userId?: string | null;
-  action: "TENANT_CREATE" | "TENANT_SUSPEND" | "TENANT_REACTIVATE" | "TENANT_RESTRICT" | "TENANT_UPDATE";
-  entity: "Tenant";
+  action:
+    | "TENANT_CREATE"
+    | "TENANT_SUSPEND"
+    | "TENANT_REACTIVATE"
+    | "TENANT_RESTRICT"
+    | "TENANT_UNRESTRICT"
+    | "TENANT_UPDATE"
+    | "TENANT_SUBSCRIPTION_UPDATE"
+    | "TENANT_TRIAL_EXTEND"
+    | "TRIAL_ACTIVATE";
+  entity: "Tenant" | "TenantSubscription";
   entityId: string;
   details: CanonicalTenantAuditDetails;
 }
