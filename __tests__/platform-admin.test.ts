@@ -19,7 +19,8 @@ const {
     findMany: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
-    update: vi.fn(),
+    update: vi.fn() as any,
+    updateMany: vi.fn() as any,
     count: vi.fn(),
   },
   mockTenantMemberModel: {
@@ -125,13 +126,33 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
     mockHeadersStore.get.mockReturnValue(undefined);
     mockCookiesStore.get.mockReturnValue(undefined);
     mockAuditLogModel.findMany.mockReset();
-    mockAuditLogModel.findMany.mockResolvedValue([]);
+    mockAuditLogModel.findMany.mockImplementation(async (args?: any) => {
+      if (args?.where?.entity === "TenantSubscription") {
+        return [
+          {
+            id: "default-sub-audit",
+            entity: "TenantSubscription",
+            details: JSON.stringify({
+              selectedPlanId: "trial",
+              selectedPlanName: "7 Day Trial",
+              trialEndUtc: new Date(Date.now() + 7 * 86400000).toISOString(),
+            }),
+            created_at: new Date(),
+          },
+        ];
+      }
+      return [];
+    });
     mockAuditLogModel.create.mockReset();
     mockAuditLogModel.create.mockResolvedValue({});
     mockAuditLogModel.count.mockReset();
     mockAuditLogModel.count.mockResolvedValue(0);
     mockTenantModel.findUnique.mockReset();
-    mockTenantModel.findUnique.mockResolvedValue({ id: "t-1", name: "Acme Corp" });
+    mockTenantModel.findUnique.mockResolvedValue({ id: "t-1", name: "Acme Corp", version: 1 });
+    mockTenantModel.update.mockReset();
+    mockTenantModel.update.mockResolvedValue({ id: "t-1", version: 1 });
+    mockTenantModel.updateMany.mockReset();
+    mockTenantModel.updateMany.mockResolvedValue({ count: 1 });
     mockTenantModel.findMany.mockReset();
     mockTenantModel.findMany.mockResolvedValue([]);
     mockTenantMemberModel.findMany.mockReset();
@@ -1026,16 +1047,17 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
       });
     });
 
-    it("DEFAULT TRIAL: Query succeeds with no subscription records, legitimately returns 7-day default trial", async () => {
+    it("NO AUDIT RECORDS: Query succeeds with no subscription records, fails closed as UNAVAILABLE without inventing trial history", async () => {
       mockAuditLogModel.findMany.mockResolvedValue([]);
 
       const meta = await getTenantSubscriptionMeta("tenant-new", tenantCreatedAt);
 
-      expect(meta.status).toBe("AVAILABLE");
-      expect(meta.planId).toBe("trial");
-      expect(meta.planName).toBe("7 Day Trial");
-      expect(meta.trialStartDate).toBe(tenantCreatedAt.toISOString());
-      expect(meta.trialEndDate).toBe(new Date(tenantCreatedAt.getTime() + 7 * 86400000).toISOString());
+      expect(meta.status).toBe("UNAVAILABLE");
+      expect(meta.planId).toBe("unavailable");
+      expect(meta.planName).toBe("Subscription Unverified");
+      expect(meta.isTrialExpired).toBe(false);
+      expect(meta.trialStartDate).toBeUndefined();
+      expect(meta.trialEndDate).toBeUndefined();
     });
 
     it("QUERY EXCEPTION: Storage/query failure rejects with sanitized SERVICE_UNAVAILABLE and does NOT produce a trial", async () => {
@@ -1248,6 +1270,18 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
         }
         return { ...simulatedTenant };
       });
+      mockTenantModel.updateMany.mockImplementation(async (args: any) => {
+        if (args?.where?.version !== undefined && args.where.version !== simulatedTenant.version) {
+          return { count: 0 };
+        }
+        if (args?.data?.lifecycle_status) {
+          simulatedTenant.lifecycle_status = args.data.lifecycle_status;
+        }
+        if (typeof args?.data?.version === "number") {
+          simulatedTenant.version = args.data.version;
+        }
+        return { count: 1 };
+      });
 
       const simulatedAuditLogs: any[] = [];
       mockAuditLogModel.findMany.mockImplementation(async () => simulatedAuditLogs.slice());
@@ -1317,6 +1351,18 @@ describe("VEYRA Phase 1 — Platform Administration & Privacy Architecture", () 
           simulatedTenant.version = args.data.version;
         }
         return { ...simulatedTenant };
+      });
+      mockTenantModel.updateMany.mockImplementation(async (args: any) => {
+        if (args?.where?.version !== undefined && args.where.version !== simulatedTenant.version) {
+          return { count: 0 };
+        }
+        if (args?.data?.lifecycle_status) {
+          simulatedTenant.lifecycle_status = args.data.lifecycle_status;
+        }
+        if (typeof args?.data?.version === "number") {
+          simulatedTenant.version = args.data.version;
+        }
+        return { count: 1 };
       });
 
       const simulatedAuditLogs: any[] = [

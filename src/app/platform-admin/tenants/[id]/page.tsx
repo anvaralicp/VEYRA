@@ -78,6 +78,12 @@ export default async function PlatformTenantDetailPage({ params }: TenantDetailP
                   PENDING
                 </span>
               )}
+              {tenant.status === "ACTIVE" && tenant.planId === "trial" && tenant.isTrialExpired && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <Clock className="w-3.5 h-3.5" />
+                  TRIAL EXPIRED
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-2 font-mono">
               <span>ID: {tenant.id}</span>
@@ -473,6 +479,19 @@ export default async function PlatformTenantDetailPage({ params }: TenantDetailP
                     Active ({tenant.trialDaysRemaining} days remaining)
                   </span>
                 )}
+              </div>
+            )}
+
+            {tenant.planId === "trial" && tenant.isTrialExpired && (
+              <div className="p-3.5 rounded-lg bg-rose-950/50 border border-rose-800/80 flex items-start gap-3 text-xs text-rose-200">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-rose-300">Tenant Evaluation Trial Has Expired</div>
+                  <div className="text-[11px] text-rose-300/80 mt-0.5">
+                    Server-side tenant request authorization is currently blocking access for this tenant&apos;s users.
+                    Extend the evaluation window below or upgrade the tenant to a paid tier to restore CRM workspace access immediately.
+                  </div>
+                </div>
               </div>
             )}
 

@@ -209,6 +209,22 @@ describe('Production Schema Compatibility & Missing Column Regression Suite', ()
         status: 'ACTIVE',
       },
     ]);
+    mockAuditLogFindMany.mockImplementation(async (args: any) => {
+      if (args?.where?.entity === 'TenantSubscription') {
+        return [
+          {
+            created_at: new Date(),
+            details: JSON.stringify({
+              selectedPlanId: 'trial',
+              selectedPlanName: '7 Day Trial',
+              trialStartUtc: new Date().toISOString(),
+              trialEndUtc: new Date(Date.now() + 7 * 86400000).toISOString(),
+            }),
+          },
+        ];
+      }
+      return [];
+    });
   });
 
   describe('Tenant Restrictions & Lifecycle Fallback (getTenantRestrictions & isTenantSuspended)', () => {
@@ -277,7 +293,22 @@ describe('Production Schema Compatibility & Missing Column Regression Suite', ()
         return { id: 'tenant-123', name: 'Original Name' };
       });
 
-      mockAuditLogFindMany.mockResolvedValue([]);
+      mockAuditLogFindMany.mockImplementation(async (args: any) => {
+        if (args?.where?.entity === 'TenantSubscription') {
+          return [
+            {
+              created_at: new Date(),
+              details: JSON.stringify({
+                selectedPlanId: 'trial',
+                selectedPlanName: '7 Day Trial',
+                trialStartUtc: new Date().toISOString(),
+                trialEndUtc: new Date(Date.now() + 7 * 86400000).toISOString(),
+              }),
+            },
+          ];
+        }
+        return [];
+      });
       mockTenantUpdate.mockResolvedValue({ id: 'tenant-123' });
 
       const formData = new FormData();
@@ -440,11 +471,15 @@ describe('Production Schema Compatibility & Missing Column Regression Suite', ()
       // recentEvents -> []
       mockAuditLogFindMany
         .mockResolvedValueOnce([]) // t-1 lifecycle (no suspend event -> ACTIVE)
-        .mockResolvedValueOnce([]) // t-1 subscription
+        .mockResolvedValueOnce([
+          { created_at: new Date(), details: JSON.stringify({ selectedPlanId: 'trial', trialStartUtc: new Date().toISOString(), trialEndUtc: new Date(Date.now() + 86400000).toISOString() }) }
+        ]) // t-1 subscription
         .mockResolvedValueOnce([
           { id: 'log-s', action: 'TENANT_SUSPEND', entity: 'Tenant', details: { reason: 'Policy breach' }, created_at: new Date() }
         ]) // t-2 lifecycle -> SUSPENDED
-        .mockResolvedValueOnce([]) // t-2 subscription
+        .mockResolvedValueOnce([
+          { created_at: new Date(), details: JSON.stringify({ selectedPlanId: 'trial', trialStartUtc: new Date().toISOString(), trialEndUtc: new Date(Date.now() + 86400000).toISOString() }) }
+        ]) // t-2 subscription
         .mockResolvedValueOnce([]); // recentEvents
 
       const metrics = await getPlatformOverviewMetrics();

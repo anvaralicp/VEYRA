@@ -90,8 +90,22 @@ describe('Tenant Context & Session Resolution Regression Suite', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCookiesStore.get.mockReturnValue(undefined);
-    mockHeadersStore.get.mockReturnValue(null);
-    mockAuditLogFindMany.mockResolvedValue([]);
+    mockAuditLogFindMany.mockImplementation(async (args: any) => {
+      if (args?.where?.entity === "TenantSubscription") {
+        return [
+          {
+            created_at: new Date(),
+            details: JSON.stringify({
+              selectedPlanId: "trial",
+              selectedPlanName: "7 Day Trial",
+              trialStartUtc: new Date().toISOString(),
+              trialEndUtc: new Date(Date.now() + 7 * 86400000).toISOString(),
+            }),
+          },
+        ];
+      }
+      return [];
+    });
   });
 
   describe('1. Single Active Tenant Auto-Resolution', () => {

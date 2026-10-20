@@ -62,7 +62,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       throw new Error("FORBIDDEN: User is not a member of this tenant");
     }
 
-    const { isTenantSuspended, getTenantRestrictions } = await import("../platform/tenant-service");
+    const { isTenantSuspended, getTenantRestrictions, getTenantSubscriptionMeta } = await import("../platform/tenant-service");
     if (await isTenantSuspended(membership.tenant_id)) {
       throw new Error("FORBIDDEN: Tenant account is suspended. Please contact platform administration.");
     }
@@ -73,6 +73,17 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     }
     if (restrictions.is_billing_restricted) {
       throw new Error("FORBIDDEN: Tenant account is restricted due to billing delinquency. Please resolve outstanding invoices.");
+    }
+
+    // Increment 3B: Subscription Governance & Trial-Expiration Enforcement
+    const subscriptionMeta = await getTenantSubscriptionMeta(membership.tenant_id);
+    if (subscriptionMeta.status === "UNAVAILABLE" || subscriptionMeta.planId === "unavailable") {
+      throw new Error("SERVICE_UNAVAILABLE: Tenant subscription status is unverifiable. Please contact platform administration.");
+    }
+
+    if (subscriptionMeta.planId === "trial" && subscriptionMeta.isTrialExpired) {
+      const expiryNotice = subscriptionMeta.trialEndDate ? ` on ${subscriptionMeta.trialEndDate}` : "";
+      throw new Error(`FORBIDDEN: TRIAL_EXPIRED: Tenant evaluation trial has expired${expiryNotice}. Please contact platform administration to upgrade or extend your evaluation.`);
     }
 
     return {
@@ -115,7 +126,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   // User has exactly 1 active membership: resolve it automatically
   if (activeMemberships.length === 1) {
     const single = activeMemberships[0];
-    const { isTenantSuspended, getTenantRestrictions } = await import("../platform/tenant-service");
+    const { isTenantSuspended, getTenantRestrictions, getTenantSubscriptionMeta } = await import("../platform/tenant-service");
     if (await isTenantSuspended(single.tenant_id)) {
       throw new Error("FORBIDDEN: Tenant account is suspended. Please contact platform administration.");
     }
@@ -125,6 +136,17 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     }
     if (restrictions.is_billing_restricted) {
       throw new Error("FORBIDDEN: Tenant account is restricted due to billing delinquency. Please resolve outstanding invoices.");
+    }
+
+    // Increment 3B: Subscription Governance & Trial-Expiration Enforcement
+    const subscriptionMeta = await getTenantSubscriptionMeta(single.tenant_id);
+    if (subscriptionMeta.status === "UNAVAILABLE" || subscriptionMeta.planId === "unavailable") {
+      throw new Error("SERVICE_UNAVAILABLE: Tenant subscription status is unverifiable. Please contact platform administration.");
+    }
+
+    if (subscriptionMeta.planId === "trial" && subscriptionMeta.isTrialExpired) {
+      const expiryNotice = subscriptionMeta.trialEndDate ? ` on ${subscriptionMeta.trialEndDate}` : "";
+      throw new Error(`FORBIDDEN: TRIAL_EXPIRED: Tenant evaluation trial has expired${expiryNotice}. Please contact platform administration to upgrade or extend your evaluation.`);
     }
 
     return {

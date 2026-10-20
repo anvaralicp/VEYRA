@@ -49,12 +49,44 @@ vi.mock('../src/prisma/db', () => ({
       findUnique: mockTenantMemberFindUnique,
     },
     AuditLog: {
-      findMany: vi.fn(async () => []),
+      findMany: vi.fn(async (args?: any) => {
+        if (args?.where?.entity === 'TenantSubscription') {
+          return [
+            {
+              id: 'sub-audit-1',
+              entity: 'TenantSubscription',
+              details: JSON.stringify({
+                selectedPlanId: 'trial',
+                selectedPlanName: '7 Day Trial',
+                trialEndUtc: new Date(Date.now() + 7 * 86400000).toISOString(),
+              }),
+              created_at: new Date(),
+            },
+          ];
+        }
+        return [];
+      }),
       findUnique: vi.fn(async () => null),
       create: vi.fn(async () => ({ id: 'mock-audit' })),
     },
     auditLog: {
-      findMany: vi.fn(async () => []),
+      findMany: vi.fn(async (args?: any) => {
+        if (args?.where?.entity === 'TenantSubscription') {
+          return [
+            {
+              id: 'sub-audit-1',
+              entity: 'TenantSubscription',
+              details: JSON.stringify({
+                selectedPlanId: 'trial',
+                selectedPlanName: '7 Day Trial',
+                trialEndUtc: new Date(Date.now() + 7 * 86400000).toISOString(),
+              }),
+              created_at: new Date(),
+            },
+          ];
+        }
+        return [];
+      }),
       findUnique: vi.fn(async () => null),
       create: vi.fn(async () => ({ id: 'mock-audit' })),
     },

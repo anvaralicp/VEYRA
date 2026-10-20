@@ -158,10 +158,19 @@ export async function getPlatformFinancialMetrics(client: any = db): Promise<Pla
       activePlanCounts[planId]++;
     }
 
-    // Tally trial aging only for valid available trial evaluations
-    if (planId === "trial" && subMeta.status === "AVAILABLE") {
-      const days = typeof subMeta.trialDaysRemaining === "number" ? subMeta.trialDaysRemaining : 0;
-      if (subMeta.isTrialExpired || days <= 0) {
+    // Tally trial aging for trial evaluations (available or conservative default)
+    if (planId === "trial") {
+      let days = typeof subMeta.trialDaysRemaining === "number" ? subMeta.trialDaysRemaining : 0;
+      let expired = subMeta.isTrialExpired;
+
+      if (subMeta.status !== "AVAILABLE") {
+        const createdAt = t.created_at && !isNaN(new Date(t.created_at).getTime()) ? new Date(t.created_at) : new Date();
+        const diffMs = (createdAt.getTime() + 7 * 86400000) - Date.now();
+        days = Math.max(0, Math.ceil(diffMs / 86400000));
+        expired = diffMs <= 0;
+      }
+
+      if (expired || days <= 0) {
         trialAging.expired++;
       } else if (days <= 2) {
         trialAging.nearingExpiry++;

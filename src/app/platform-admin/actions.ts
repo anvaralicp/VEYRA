@@ -9,6 +9,29 @@ import {
 } from "../../lib/platform/tenant-service";
 import { requirePlatformAdmin } from "../../lib/auth/platform";
 
+function handleActionError(error: any): never {
+  const msg = String(error?.message || "");
+  if (msg.includes("CONFLICT") || msg.includes("STALE_DATA")) {
+    throw new Error("CONFLICT: STALE_DATA: The tenant record was updated by another administrator. Please refresh the page and try again.");
+  }
+  if (
+    msg.startsWith("UNAUTHORIZED") ||
+    msg.startsWith("FORBIDDEN") ||
+    msg.startsWith("SERVICE_UNAVAILABLE") ||
+    msg.startsWith("Invalid") ||
+    msg.includes("must be between") ||
+    msg.includes("already on plan") ||
+    msg.includes("already suspended") ||
+    msg.includes("not currently suspended") ||
+    msg.includes("already active") ||
+    msg.includes("already disabled")
+  ) {
+    throw error;
+  }
+  console.error("[PlatformAdminActionError]", error);
+  throw new Error("An unexpected error occurred while executing the platform action. Please try again.");
+}
+
 export async function suspendTenantAction(formData: FormData): Promise<void> {
   await requirePlatformAdmin();
   const tenantId = formData.get("tenantId") as string;
@@ -18,10 +41,14 @@ export async function suspendTenantAction(formData: FormData): Promise<void> {
     throw new Error("Tenant ID is required.");
   }
 
-  await suspendTenant(tenantId, reason);
-  revalidatePath(`/platform-admin/tenants/${tenantId}`);
-  revalidatePath("/platform-admin/tenants");
-  revalidatePath("/platform-admin");
+  try {
+    await suspendTenant(tenantId, reason);
+    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    revalidatePath("/platform-admin/tenants");
+    revalidatePath("/platform-admin");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 
 export async function reactivateTenantAction(formData: FormData): Promise<void> {
@@ -32,10 +59,14 @@ export async function reactivateTenantAction(formData: FormData): Promise<void> 
     throw new Error("Tenant ID is required.");
   }
 
-  await reactivateTenant(tenantId);
-  revalidatePath(`/platform-admin/tenants/${tenantId}`);
-  revalidatePath("/platform-admin/tenants");
-  revalidatePath("/platform-admin");
+  try {
+    await reactivateTenant(tenantId);
+    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    revalidatePath("/platform-admin/tenants");
+    revalidatePath("/platform-admin");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 
 export async function inviteTenantAdminAction(formData: FormData): Promise<void> {
@@ -48,13 +79,17 @@ export async function inviteTenantAdminAction(formData: FormData): Promise<void>
     throw new Error("Tenant ID and destination email are required.");
   }
 
-  await inviteTenantAdmin(tenantId, {
-    email,
-    role: role === "OWNER" ? "OWNER" : "ADMIN",
-  });
+  try {
+    await inviteTenantAdmin(tenantId, {
+      email,
+      role: role === "OWNER" ? "OWNER" : "ADMIN",
+    });
 
-  revalidatePath(`/platform-admin/tenants/${tenantId}`);
-  revalidatePath("/platform-admin/invitations");
+    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    revalidatePath("/platform-admin/invitations");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 
 export async function revokeTenantAdminInvitationAction(formData: FormData): Promise<void> {
@@ -66,11 +101,15 @@ export async function revokeTenantAdminInvitationAction(formData: FormData): Pro
     throw new Error("Invitation ID is required.");
   }
 
-  await revokeTenantAdminInvitation(invitationId);
-  if (tenantId) {
-    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+  try {
+    await revokeTenantAdminInvitation(invitationId);
+    if (tenantId) {
+      revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    }
+    revalidatePath("/platform-admin/invitations");
+  } catch (err: any) {
+    handleActionError(err);
   }
-  revalidatePath("/platform-admin/invitations");
 }
 
 import type { SalesEnquiryStatus } from "../../lib/platform/sales-service";
@@ -84,10 +123,14 @@ export async function updateSalesEnquiryStatusAction(formData: FormData): Promis
     throw new Error("Enquiry ID and target status are required.");
   }
 
-  const { updateSalesEnquiryStatus } = await import("../../lib/platform/sales-service");
-  await updateSalesEnquiryStatus(enquiryId, status, reason);
-  revalidatePath("/platform-admin/sales");
-  revalidatePath("/platform-admin");
+  try {
+    const { updateSalesEnquiryStatus } = await import("../../lib/platform/sales-service");
+    await updateSalesEnquiryStatus(enquiryId, status, reason);
+    revalidatePath("/platform-admin/sales");
+    revalidatePath("/platform-admin");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 
 import type { TenantRestrictionType } from "../../lib/platform/tenant-service";
@@ -104,11 +147,15 @@ export async function updateTenantRestrictionAction(formData: FormData): Promise
     throw new Error("Tenant ID and restriction type are required.");
   }
 
-  const { updateTenantRestriction } = await import("../../lib/platform/tenant-service");
-  await updateTenantRestriction(tenantId, restrictionType, enable, reason);
-  revalidatePath(`/platform-admin/tenants/${tenantId}`);
-  revalidatePath("/platform-admin/tenants");
-  revalidatePath("/platform-admin");
+  try {
+    const { updateTenantRestriction } = await import("../../lib/platform/tenant-service");
+    await updateTenantRestriction(tenantId, restrictionType, enable, reason);
+    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    revalidatePath("/platform-admin/tenants");
+    revalidatePath("/platform-admin");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 
 export async function updateTenantPlanAction(formData: FormData): Promise<void> {
@@ -121,12 +168,16 @@ export async function updateTenantPlanAction(formData: FormData): Promise<void> 
     throw new Error("Tenant ID and plan identifier are required.");
   }
 
-  const { updateTenantSubscriptionPlan } = await import("../../lib/platform/tenant-service");
-  await updateTenantSubscriptionPlan(tenantId, planId, reason);
-  revalidatePath(`/platform-admin/tenants/${tenantId}`);
-  revalidatePath("/platform-admin/tenants");
-  revalidatePath("/platform-admin/financials");
-  revalidatePath("/platform-admin");
+  try {
+    const { updateTenantSubscriptionPlan } = await import("../../lib/platform/tenant-service");
+    await updateTenantSubscriptionPlan(tenantId, planId, reason);
+    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    revalidatePath("/platform-admin/tenants");
+    revalidatePath("/platform-admin/financials");
+    revalidatePath("/platform-admin");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 
 export async function extendTenantTrialAction(formData: FormData): Promise<void> {
@@ -140,11 +191,15 @@ export async function extendTenantTrialAction(formData: FormData): Promise<void>
     throw new Error("Tenant ID and valid extension days are required.");
   }
 
-  const { extendTenantTrial } = await import("../../lib/platform/tenant-service");
-  await extendTenantTrial(tenantId, days, reason);
-  revalidatePath(`/platform-admin/tenants/${tenantId}`);
-  revalidatePath("/platform-admin/tenants");
-  revalidatePath("/platform-admin/financials");
-  revalidatePath("/platform-admin");
+  try {
+    const { extendTenantTrial } = await import("../../lib/platform/tenant-service");
+    await extendTenantTrial(tenantId, days, reason);
+    revalidatePath(`/platform-admin/tenants/${tenantId}`);
+    revalidatePath("/platform-admin/tenants");
+    revalidatePath("/platform-admin/financials");
+    revalidatePath("/platform-admin");
+  } catch (err: any) {
+    handleActionError(err);
+  }
 }
 

@@ -540,10 +540,15 @@ export interface TenantSubscriptionMeta {
  */
 export async function getTenantSubscriptionMeta(
   tenantId: string,
-  tenantCreatedAt: Date,
+  tenantCreatedAt?: Date,
   client: any = db
 ): Promise<TenantSubscriptionMeta> {
-  const validCreatedAt = !isNaN(new Date(tenantCreatedAt).getTime()) ? new Date(tenantCreatedAt) : new Date();
+  let validCreatedAt: Date;
+  if (tenantCreatedAt && !isNaN(new Date(tenantCreatedAt).getTime())) {
+    validCreatedAt = new Date(tenantCreatedAt);
+  } else {
+    validCreatedAt = new Date();
+  }
 
   const AuditLog = getModel(client, "AuditLog");
   if (!AuditLog || typeof AuditLog.findMany !== "function") {
@@ -574,29 +579,20 @@ export async function getTenantSubscriptionMeta(
     throw new Error("SERVICE_UNAVAILABLE: Invalid subscription log response from storage");
   }
 
-  // Case 2: Query succeeded, but no subscription event exists -> documented default-trial behavior applies
+  // Critical Metadata Safety Rule:
+  // When no subscription event exists, do not silently invent a plan or 7-day trial.
+  // Classify as unverifiable/unavailable to prevent unverified tenants or misclassified paid tenants.
   if (logs.length === 0) {
-    const trialStart = new Date(validCreatedAt);
-    const trialEnd = new Date(trialStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const now = new Date();
-    const diffMs = trialEnd.getTime() - now.getTime();
-    const trialDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-    const isTrialExpired = diffMs <= 0;
-    const isTrialNearingExpiry = !isTrialExpired && trialDaysRemaining <= 3;
-
     return {
-      status: "AVAILABLE",
-      planId: "trial",
-      planName: "7 Day Trial",
-      trialStartDate: trialStart.toISOString(),
-      trialEndDate: trialEnd.toISOString(),
-      trialDaysRemaining,
-      isTrialExpired,
-      isTrialNearingExpiry,
+      status: "UNAVAILABLE",
+      planId: "unavailable",
+      planName: "Subscription Unverified",
+      isTrialExpired: false,
+      isTrialNearingExpiry: false,
     };
   }
 
-  // Case 1 & Case 3: Metadata found in audit log
+  // Metadata found in audit log
   const latest = logs[0];
   let details: any = null;
   if (typeof latest.details === "string") {
@@ -686,6 +682,7 @@ export async function getTenantSubscriptionMeta(
     trialEnd = parsed;
   }
 
+  // Contradictory dates
   if (trialStart && trialEnd && trialEnd.getTime() < trialStart.getTime()) {
     return {
       status: "UNAVAILABLE",
@@ -696,29 +693,41 @@ export async function getTenantSubscriptionMeta(
     };
   }
 
-  if (planId === "trial") {
-    if (!trialStart) trialStart = validCreatedAt;
-    if (!trialEnd) trialEnd = new Date(trialStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  // Paid plans (basic, professional, enterprise) are permanently exempt from trial expiration
+  if (planId !== "trial") {
+    return {
+      status: "AVAILABLE",
+      planId,
+      planName,
+      trialStartDate: trialStart ? trialStart.toISOString() : undefined,
+      trialEndDate: trialEnd ? trialEnd.toISOString() : undefined,
+      trialDaysRemaining: undefined,
+      isTrialExpired: false,
+      isTrialNearingExpiry: false,
+    };
   }
 
-  let trialDaysRemaining: number | undefined;
-  let isTrialExpired = false;
-  let isTrialNearingExpiry = false;
-
-  if (trialEnd) {
-    const now = new Date();
-    const diffMs = trialEnd.getTime() - now.getTime();
-    trialDaysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-    isTrialExpired = diffMs <= 0;
-    isTrialNearingExpiry = !isTrialExpired && trialDaysRemaining <= 3;
+  // For trial plans, if trialStart is omitted, use validCreatedAt; if trialEnd is omitted, derive 7-day trial from trialStart
+  if (!trialStart) {
+    trialStart = new Date(validCreatedAt);
   }
+  if (!trialEnd) {
+    trialEnd = new Date(trialStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  const now = new Date();
+  const diffMs = trialEnd.getTime() - now.getTime();
+  // Equality (diffMs === 0) means expired
+  const isTrialExpired = diffMs <= 0;
+  const trialDaysRemaining = isTrialExpired ? 0 : Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const isTrialNearingExpiry = !isTrialExpired && trialDaysRemaining <= 3;
 
   return {
     status: "AVAILABLE",
-    planId,
+    planId: "trial",
     planName,
     trialStartDate: trialStart ? trialStart.toISOString() : undefined,
-    trialEndDate: trialEnd ? trialEnd.toISOString() : undefined,
+    trialEndDate: trialEnd.toISOString(),
     trialDaysRemaining,
     isTrialExpired,
     isTrialNearingExpiry,
@@ -1361,14 +1370,28 @@ export async function suspendTenant(tenantId: string, reason: string): Promise<{
 
     // 3. Mutate concrete lifecycle columns and increment version atomically under CAS (or update timestamp if legacy)
     if (hasIncrement2Columns) {
-      await txTenant.update({
-        where: { id: cleanTenantId },
-        data: {
-          lifecycle_status: "SUSPENDED",
-          version: targetVersion,
-          updated_at: now,
-        },
-      });
+      if (typeof txTenant.updateMany === "function") {
+        const updateRes = await txTenant.updateMany({
+          where: { id: cleanTenantId, version: currentVersion },
+          data: {
+            lifecycle_status: "SUSPENDED",
+            version: targetVersion,
+            updated_at: now,
+          },
+        });
+        if (!updateRes || updateRes.count === 0) {
+          throw new Error("CONFLICT: STALE_DATA: Tenant was modified by another transaction. Please refresh and try again.");
+        }
+      } else {
+        await txTenant.update({
+          where: { id: cleanTenantId },
+          data: {
+            lifecycle_status: "SUSPENDED",
+            version: targetVersion,
+            updated_at: now,
+          },
+        });
+      }
     } else {
       await txTenant.update({
         where: { id: cleanTenantId },
@@ -1520,14 +1543,28 @@ export async function reactivateTenant(tenantId: string): Promise<{ success: boo
 
     // 3. Mutate lifecycle_status to ACTIVE and increment version (or update timestamp if legacy)
     if (hasIncrement2Columns) {
-      await txTenant.update({
-        where: { id: cleanTenantId },
-        data: {
-          lifecycle_status: "ACTIVE",
-          version: targetVersion,
-          updated_at: now,
-        },
-      });
+      if (typeof txTenant.updateMany === "function") {
+        const updateRes = await txTenant.updateMany({
+          where: { id: cleanTenantId, version: currentVersion },
+          data: {
+            lifecycle_status: "ACTIVE",
+            version: targetVersion,
+            updated_at: now,
+          },
+        });
+        if (!updateRes || updateRes.count === 0) {
+          throw new Error("CONFLICT: STALE_DATA: Tenant was modified by another transaction. Please refresh and try again.");
+        }
+      } else {
+        await txTenant.update({
+          where: { id: cleanTenantId },
+          data: {
+            lifecycle_status: "ACTIVE",
+            version: targetVersion,
+            updated_at: now,
+          },
+        });
+      }
     } else {
       await txTenant.update({
         where: { id: cleanTenantId },
@@ -1694,14 +1731,38 @@ export async function updateTenantRestriction(
 
     // 3. Mutate restriction columns and increment version (or touch updated_at if legacy)
     if (hasIncrement2Columns) {
-      await txTenant.update({
-        where: { id: cleanTenantId },
-        data: {
-          [targetField]: enable,
-          version: targetVersion,
-          updated_at: now,
-        },
-      });
+      if (typeof txTenant.updateMany === "function") {
+        const updateRes = await txTenant.updateMany({
+          where: { id: cleanTenantId, version: currentVersion },
+          data: {
+            [targetField]: enable,
+            version: targetVersion,
+            updated_at: now,
+          },
+        });
+        if (!updateRes || updateRes.count === 0) {
+          throw new Error("CONFLICT: STALE_DATA: Tenant was modified by another transaction. Please refresh and try again.");
+        }
+        if (typeof txTenant.update === "function") {
+          await txTenant.update({
+            where: { id: cleanTenantId },
+            data: {
+              [targetField]: enable,
+              version: targetVersion,
+              updated_at: now,
+            },
+          });
+        }
+      } else {
+        await txTenant.update({
+          where: { id: cleanTenantId },
+          data: {
+            [targetField]: enable,
+            version: targetVersion,
+            updated_at: now,
+          },
+        });
+      }
     } else {
       await txTenant.update({
         where: { id: cleanTenantId },
@@ -1780,23 +1841,67 @@ export async function updateTenantSubscriptionPlan(
       });
     }
 
-    // 2. Fetch existing tenant to check existence and retrieve creation date
-    const tenant = await txTenant.findUnique({
-      where: { id: cleanTenantId },
-      select: { id: true, created_at: true },
-    });
-    if (!tenant) {
+    // 2. Fetch existing tenant to check existence, retrieve creation date and inspect version
+    let existingTenant: any = null;
+    let hasIncrement2Columns = true;
+    try {
+      existingTenant = await txTenant.findUnique({
+        where: { id: cleanTenantId },
+        select: { id: true, created_at: true, version: true },
+      });
+    } catch {
+      hasIncrement2Columns = false;
+      existingTenant = await txTenant.findUnique({
+        where: { id: cleanTenantId },
+        select: { id: true, created_at: true },
+      });
+    }
+
+    if (!existingTenant) {
       throw new Error("Tenant not found");
     }
 
-    const currentSub = await getTenantSubscriptionMeta(cleanTenantId, tenant.created_at, tx);
+    const currentSub = await getTenantSubscriptionMeta(cleanTenantId, existingTenant.created_at, tx);
     const previousPlanId = currentSub.planId;
 
     if (previousPlanId === newPlanId) {
       throw new Error(`Tenant is already on plan ${newPlanId}`);
     }
 
+    const currentVersion = (hasIncrement2Columns && typeof existingTenant.version === "number") ? existingTenant.version : 1;
+    const targetVersion = hasIncrement2Columns ? currentVersion + 1 : currentVersion;
+
+    if (hasIncrement2Columns) {
+      if (typeof txTenant.updateMany === "function") {
+        const updateRes = await txTenant.updateMany({
+          where: { id: cleanTenantId, version: currentVersion },
+          data: { version: targetVersion, updated_at: now },
+        });
+        if (!updateRes || updateRes.count === 0) {
+          throw new Error("CONFLICT: STALE_DATA: Tenant was modified by another transaction. Please refresh and try again.");
+        }
+      } else {
+        await txTenant.update({
+          where: { id: cleanTenantId },
+          data: { version: targetVersion, updated_at: now },
+        });
+      }
+    } else {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: { updated_at: now },
+      });
+    }
+
     const planName = TRUSTED_PLAN_NAMES[newPlanId] || newPlanId;
+    let trialStartUtc = currentSub.trialStartDate;
+    let trialEndUtc = currentSub.trialEndDate;
+    if (newPlanId === "trial") {
+      trialStartUtc = trialStartUtc || now.toISOString();
+      if (!trialEndUtc || new Date(trialEndUtc).getTime() <= now.getTime()) {
+        trialEndUtc = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
 
     // 3. Atomically write TenantSubscription audit record
     const { logAuditTx } = await import("../audit/logger");
@@ -1814,8 +1919,10 @@ export async function updateTenantSubscriptionPlan(
         selectedPlanId: newPlanId,
         selectedPlanName: planName,
         selectedBillingCycle: "MONTHLY",
-        trialStartUtc: currentSub.trialStartDate || now.toISOString(),
-        trialEndUtc: currentSub.trialEndDate || now.toISOString(),
+        trialStartUtc: trialStartUtc || undefined,
+        trialEndUtc: trialEndUtc || undefined,
+        fromVersion: currentVersion,
+        toVersion: targetVersion,
         actionClass: "CLASS_A",
         source: "RUNTIME",
       },
@@ -1871,17 +1978,28 @@ export async function extendTenantTrial(
       });
     }
 
-    // 2. Fetch existing tenant to check existence and retrieve creation date
-    const tenant = await txTenant.findUnique({
-      where: { id: cleanTenantId },
-      select: { id: true, created_at: true },
-    });
-    if (!tenant) {
+    // 2. Fetch existing tenant to check existence, retrieve creation date and inspect version
+    let existingTenant: any = null;
+    let hasIncrement2Columns = true;
+    try {
+      existingTenant = await txTenant.findUnique({
+        where: { id: cleanTenantId },
+        select: { id: true, created_at: true, version: true },
+      });
+    } catch {
+      hasIncrement2Columns = false;
+      existingTenant = await txTenant.findUnique({
+        where: { id: cleanTenantId },
+        select: { id: true, created_at: true },
+      });
+    }
+
+    if (!existingTenant) {
       throw new Error("Tenant not found");
     }
 
-    const currentSub = await getTenantSubscriptionMeta(cleanTenantId, tenant.created_at, tx);
-    if (currentSub.planId !== "trial") {
+    const currentSub = await getTenantSubscriptionMeta(cleanTenantId, existingTenant.created_at, tx);
+    if (currentSub.planId !== "trial" && currentSub.planId !== "unavailable") {
       throw new Error("Trial extensions are only applicable to accounts currently on the trial plan");
     }
 
@@ -1890,12 +2008,37 @@ export async function extendTenantTrial(
     const newTrialEnd = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
     const newTrialEndUtc = newTrialEnd.toISOString();
 
+    const currentVersion = (hasIncrement2Columns && typeof existingTenant.version === "number") ? existingTenant.version : 1;
+    const targetVersion = hasIncrement2Columns ? currentVersion + 1 : currentVersion;
+
+    if (hasIncrement2Columns) {
+      if (typeof txTenant.updateMany === "function") {
+        const updateRes = await txTenant.updateMany({
+          where: { id: cleanTenantId, version: currentVersion },
+          data: { version: targetVersion, updated_at: now },
+        });
+        if (!updateRes || updateRes.count === 0) {
+          throw new Error("CONFLICT: STALE_DATA: Tenant was modified by another transaction. Please refresh and try again.");
+        }
+      } else {
+        await txTenant.update({
+          where: { id: cleanTenantId },
+          data: { version: targetVersion, updated_at: now },
+        });
+      }
+    } else {
+      await txTenant.update({
+        where: { id: cleanTenantId },
+        data: { updated_at: now },
+      });
+    }
+
     // Preserve valid existing trial start date, falling back to valid tenant creation date, then current UTC time
     let trialStartUtc: string;
     if (currentSub.trialStartDate && !isNaN(new Date(currentSub.trialStartDate).getTime())) {
       trialStartUtc = new Date(currentSub.trialStartDate).toISOString();
-    } else if (tenant.created_at && !isNaN(new Date(tenant.created_at).getTime())) {
-      trialStartUtc = new Date(tenant.created_at).toISOString();
+    } else if (existingTenant.created_at && !isNaN(new Date(existingTenant.created_at).getTime())) {
+      trialStartUtc = new Date(existingTenant.created_at).toISOString();
     } else {
       trialStartUtc = now.toISOString();
     }
@@ -1919,6 +2062,8 @@ export async function extendTenantTrial(
         selectedPlanName: TRUSTED_PLAN_NAMES.trial,
         trialStartUtc,
         trialEndUtc: newTrialEndUtc,
+        fromVersion: currentVersion,
+        toVersion: targetVersion,
         actionClass: "CLASS_A",
         source: "RUNTIME",
       },
